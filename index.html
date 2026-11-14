@@ -1165,10 +1165,17 @@ function render(){
   // Выход окончен: астронавт внутри хабитата. Ни тревога по укрытию, ни PNR
   // к нему уже не относятся — укрытие ему больше не нужно, он дома.
   const atHome = st.phase==='home';
+  // Стоянка в укрытии — это и есть пребывание в укрытии: время до него
+  // равно нулю. Раньше здесь подставлялось время полного возврата ДО БАЗЫ,
+  // и стоящему в H1 астронавту сообщалось «ближайшее укрытие в 01:35 (2.71 км)»
+  // с заголовком SHELTER UNREACHABLE.
+  const inHaven = st.phase==='stop';
   let spe=null;
   if(S.spe && t>=SPE_REG && t<SPE_END && !atHome){
-    const left=Math.max(0,SPE_ARRIVE-t), reach=st.hBack*60;
-    spe={left, reach, unreachable: st.dBack>5 && reach>left};
+    const left=Math.max(0,SPE_ARRIVE-t);
+    const reach=inHaven ? 0 : st.hBack*60;
+    spe={left, reach, inHaven,
+         unreachable: !inHaven && st.dBack>5 && reach>left};
   }
   const speWarn = spe && spe.left>0 && !spe.unreachable;
   const v=$('#verdict');
@@ -1180,6 +1187,8 @@ function render(){
     ? `Astronaut is back inside the habitat. EVA closed with ${st.limiting.label.toLowerCase()} as the limiting consumable.`
     : (spe&&spe.unreachable)
     ? `Proton flux ${spe.left>0?'arrives in '+fmt(spe.left):'has arrived'}; nearest shelter is ${fmt(spe.reach)} away (${(st.dBack/1000).toFixed(2)} km). Shelter cannot be reached in time.`
+    : speWarn && spe.inHaven
+    ? `SPE registered. Crew is inside ${'shelter'}; proton flux in ${fmt(spe.left)}. Remain under cover.`
     : speWarn && !abort
     ? `SPE registered. Proton flux in ${fmt(spe.left)}; shelter reachable in ${fmt(spe.reach)}. Begin return now.`
     : go
@@ -1217,7 +1226,12 @@ function render(){
     sb.innerHTML = t<SPE_REG
       ? `<b>SPE WATCH</b> · orbital detection at ${fmt(SPE_REG)}, proton flux ${SPE_LEAD} min later (design value, range 30–90 min)`
       : t<SPE_ARRIVE
-      ? `<b>SPE DETECTED</b> · FLUX ARRIVAL IN <b>${fmt(spe.left)}</b> · NEAREST SHELTER ${fmt(spe.reach)} · ${spe.unreachable?'<b>UNREACHABLE</b>':'reachable, slack '+fmt(spe.left-spe.reach)}`
+      // spe считается только вне хабитата: дома укрытие не нужно. Без этой
+      // ветки строка либо обращалась к null, либо застывала на прежнем
+      // тексте и сообщала вернувшемуся астронавту время до укрытия.
+      ? (spe
+         ? `<b>SPE DETECTED</b> · FLUX ARRIVAL IN <b>${fmt(spe.left)}</b> · NEAREST SHELTER ${fmt(spe.reach)} · ${spe.unreachable?'<b>UNREACHABLE</b>':'reachable, slack '+fmt(spe.left-spe.reach)}`
+         : `<b>SPE DETECTED</b> · FLUX ARRIVAL IN <b>${fmt(Math.max(0,SPE_ARRIVE-t))}</b> · crew inside the habitat, sheltered`)
       : t<SPE_END
       ? `<b>PROTON FLUX ACTIVE</b> · dose rate ×80 · DESIGN-BASIS WORST CASE`
       : `<b>FLUX SUBSIDED</b> · cumulative dose ${st.dose.toFixed(2)} mSv`;
