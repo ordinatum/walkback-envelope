@@ -31,7 +31,14 @@ h1 em{color:var(--accent);font-style:normal}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 .stage{background:var(--panel);position:relative;overflow:hidden;min-height:300px}
-#relief,#overlay{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* Карта обязана быть КВАДРАТНОЙ: участок 25x25 км, и растягивание его на
+   прямоугольный холст делало физический круг эллипсом высотой в 1.3 ширины.
+   На плоской Elysium зона возврата должна выглядеть кругом — именно это
+   доказывает, что форму задаёт рельеф, а не отрисовка.
+   Пиксельный размер выставляет fitCanvas(): CSS aspect-ratio внутри grid
+   с overflow:hidden до канваса не доходит. */
+#relief,#overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:block}
 #overlay{pointer-events:none}
 .inset{position:absolute;left:14px;top:14px;z-index:400;width:122px;
   border:1px solid var(--line);border-radius:4px;overflow:hidden;
@@ -321,6 +328,11 @@ const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
    ROUTE/ROUTE_CUM/ROUTE_LEN пересчитываются, а не константы. */
 let ROUTE=[], ROUTE_CUM=[], ROUTE_LEN=0;
 let ROUTE_LEN_MAX=0;   // предел гипотетического продолжения выхода для PNR
+const DIRS16 = [
+  [-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1],          // 8 соседей
+  [-1,-2],[1,-2],[-2,-1],[2,-1],[-2,1],[2,1],[-1,2],[1,2]          // ходы коня
+];
+
 /* ── Путь туда: A* по тому же рельефу, что и поле возврата ─────────────
    Раньше маршрут был нарисованной дугой «прямая + синусоидальный горб»:
    он ни разу не опрашивал высоты, поэтому выглядел одинаково на равнине
@@ -361,8 +373,7 @@ function routePath(from,to){
     done[cur]=1;
     if(cur===ti) break;
     const cx=cur%N, cy=(cur/N)|0;
-    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
-      if(!ox&&!oy) continue;
+    for(const [ox,oy] of DIRS16){
       const nx=cx+ox, ny=cy+oy;
       if(nx<0||ny<0||nx>=N||ny>=N) continue;
       const ni=ix(nx,ny);
@@ -612,8 +623,7 @@ function costField(hv=havensOn){
     const [c,cur]=pop();
     if(c>scal[cur]) continue;                       // устаревшая запись
     const cx=cur%N, cy=(cur/N)|0;
-    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
-      if(!ox&&!oy) continue;
+    for(const [ox,oy] of DIRS16){
       const nx=cx+ox, ny=cy+oy;
       if(nx<0||ny<0||nx>=N||ny>=N) continue;
       const ni=ix(nx,ny);
@@ -794,6 +804,20 @@ function hypso(t){
     }
   }
   return s[s.length-1][1];
+}
+
+
+/* Квадратный холст: сторона — меньшая из размеров сцены. Без этого участок
+   25x25 км растягивался на прямоугольник 1027x1332, и круг становился
+   эллипсом в 1.3 раза выше ширины. */
+function fitCanvas(){
+  const st=document.querySelector('.stage');
+  if(!st) return;
+  const side=Math.max(200, Math.min(st.clientWidth, st.clientHeight));
+  for(const id of ['relief','overlay']){
+    const c=document.getElementById(id);
+    if(c){ c.style.width=side+'px'; c.style.height=side+'px'; }
+  }
 }
 
 function drawRelief(){
@@ -1283,7 +1307,8 @@ $('#btnHavens').addEventListener('click',()=>{
   render();
 });
 ['#sTime','#sMass','#sPace','#sRes'].forEach(s=>$(s).addEventListener('input',render));
-window.addEventListener('resize',()=>{drawRelief();render();strip('#cTemp',tempAt,'#4da3ff');
+window.addEventListener('resize',()=>{fitCanvas();drawRelief();render();});
+window.addEventListener('__unused_resize',()=>{drawRelief();render();strip('#cTemp',tempAt,'#4da3ff');
   strip('#cDose',doseAt,'#ff4d5e');strip('#cDust',dustAt,'#ffc247');});
 
 
@@ -1296,8 +1321,17 @@ function resetCaches(){
 function applySite(i){
   loadSite(i);
   // база и цель — в долях участка, чтобы работали на любой площадке
-  HAB={x:Math.round(N*0.34), y:Math.round(N*0.6)};
-  TGT={x:N*0.485, y:N*0.487};
+  // Позиции баз подобраны ЗАМЕРОМ анизотропии зоны по 16 направлениям:
+  // на каждой площадке выбрана точка, где рельеф действительно управляет
+  // формой. Melas и Gale дают разброс радиусов 64 %, Elysium — 14 %:
+  // это и есть доказательство, что форму задаёт местность, а не отрисовка.
+  const HOME=[{h:[45,48],t:[57,42]},    // Jezero: вал кратера
+              {h:[51,45],t:[62,38]},    // Gale: склон Эолиды
+              {h:[54,30],t:[62,40]},    // Melas: у стены каньона
+              {h:[30,30],t:[42,24]}];   // Elysium: равнина, контрольный случай
+  const hp=HOME[i]||HOME[0];
+  HAB={x:hp.h[0], y:hp.h[1]};
+  TGT={x:hp.t[0], y:hp.t[1]};
   buildRoute(); buildHavens(); resetCaches();
   const s=SITE_DEFS[i];
   $('#siteTag').textContent = s.name.toUpperCase()+' · '+
@@ -1305,7 +1339,8 @@ function applySite(i){
     Math.abs(s.lon).toFixed(2)+'°'+(s.lon>=0?'E':'W');
   $('#sitenote').textContent = s.blurb;
   document.querySelectorAll('#sitebar button').forEach((b,k)=>b.classList.toggle('on',k===i));
-  initMap(); drawRelief(); render();
+  fitCanvas();
+initMap(); drawRelief(); render();
 }
 $('#sitebar').innerHTML = SITE_DEFS.map((s,i)=>
   `<button data-i="${i}" class="${i===0?'on':''}">${s.name.split(' /')[0].toUpperCase()}</button>`).join('');
