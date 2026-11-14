@@ -905,6 +905,74 @@ function initMap(){
   drawRelief();
 }
 
+/* Поле ЗАПАСА по худшему каналу: сколько процентов ёмкости останется сверх
+   стоимости возврата, если встать в эту точку прямо сейчас. Граница зоны —
+   линия уровня margin = резерв. Считаем скаляр в узлах, чтобы провести её
+   marching-squares, а не по рёбрам ячеек: прежняя граница шла ступеньками
+   по 298 м (размер ячейки), что выглядело лесенкой и смещало линию к краю
+   ячейки вместо настоящего места равенства запаса резерву. */
+function marginField(cf, remaining, M){
+  const caps=capsOf(SCEN[scen]);
+  const fld=new Float32Array((M+1)*(M+1));
+  const need={};
+  for(let j=0;j<=M;j++) for(let i=0;i<=M;i++){
+    // билинейная выборка стоимости возврата в узле
+    const gx=i/M*(N-1), gy=j/M*(N-1);
+    const x0=Math.floor(gx), y0=Math.floor(gy);
+    const x1=Math.min(N-1,x0+1), y1=Math.min(N-1,y0+1);
+    const fx=gx-x0, fy=gy-y0;
+    const i00=ix(x0,y0), i10=ix(x1,y0), i01=ix(x0,y1), i11=ix(x1,y1);
+    if(!isFinite(cf.scal[i00])||!isFinite(cf.scal[i10])||
+       !isFinite(cf.scal[i01])||!isFinite(cf.scal[i11])){
+      fld[j*(M+1)+i]=-999;                  // непроходимо — заведомо вне зоны
+      continue;
+    }
+    for(const k of KEYS){
+      need[k]=cf.ch[k][i00]*(1-fx)*(1-fy) + cf.ch[k][i10]*fx*(1-fy)
+            + cf.ch[k][i01]*(1-fx)*fy     + cf.ch[k][i11]*fx*fy;
+    }
+    fld[j*(M+1)+i]=evalMargin(remaining,need,caps).worst.pct;
+  }
+  return fld;
+}
+
+/* Заливка и граница зоны по линии уровня. Заливка остаётся по ячейкам —
+   она полупрозрачная и ступеньки на ней не читаются; гладкой делается
+   именно граница, которую глаз и отслеживает. */
+function drawZone(g, cf, remaining, w, h, res){
+  const inZ=zoneMask(cf,remaining);
+  const cw=w/N, chh=h/N;
+  g.fillStyle='rgba(46,230,168,.10)';
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(inZ[ix(x,y)]) g.fillRect(x*cw,y*chh,cw+0.5,chh+0.5);
+
+  const M=Math.min(300, N*4);
+  const fld=marginField(cf,remaining,M);
+  const PX=i=>i/M*w, PY=j=>j/M*h;
+  const lvl=res;
+  // Полный marching squares: собираем ВСЕ пересечения уровня с четырьмя
+  // рёбрами клетки и соединяем попарно. Неполный разбор (только часть
+  // конфигураций) оставлял линию рваной — она шла пунктиром там, где
+  // пересекались, например, нижнее и правое рёбра.
+  g.strokeStyle='rgba(60,255,185,1)'; g.lineWidth=2.6;
+  g.lineJoin='round'; g.lineCap='round'; g.beginPath();
+  for(let j=0;j<M;j++) for(let i=0;i<M;i++){
+    const a=fld[j*(M+1)+i],     b=fld[j*(M+1)+i+1],
+          d=fld[(j+1)*(M+1)+i], e=fld[(j+1)*(M+1)+i+1];
+    const p=[];
+    if((a-lvl)*(b-lvl)<0) p.push([PX(i+(lvl-a)/(b-a)), PY(j)]);              // верх
+    if((b-lvl)*(e-lvl)<0) p.push([PX(i+1), PY(j+(lvl-b)/(e-b))]);            // право
+    if((d-lvl)*(e-lvl)<0) p.push([PX(i+(lvl-d)/(e-d)), PY(j+1)]);            // низ
+    if((a-lvl)*(d-lvl)<0) p.push([PX(i), PY(j+(lvl-a)/(d-a))]);              // лево
+    if(p.length===2){ g.moveTo(p[0][0],p[0][1]); g.lineTo(p[1][0],p[1][1]); }
+    else if(p.length===4){            // седло: соединяем ближние пары
+      g.moveTo(p[0][0],p[0][1]); g.lineTo(p[1][0],p[1][1]);
+      g.moveTo(p[2][0],p[2][1]); g.lineTo(p[3][0],p[3][1]);
+    }
+  }
+  g.stroke();
+  return inZ;
+}
+
 /* Ячейки, из которых запас по худшему каналу не ниже резерва. */
 function zoneMask(cf,remaining){
   const caps=capsOf(SCEN[scen]), res=reservePct();
@@ -931,20 +999,7 @@ function drawOverlay(st, pnrT){
   // зона возврата: ячейки, из которых запас по худшему каналу не ниже резерва.
   // Привязана к хабитату, берёт стоимость из того же поля, что и вердикт.
   const cf=costField(), res=reservePct();
-  const inZ=zoneMask(cf,st.remaining);
-  const cw=w/N, chh=h/N;
-  g.fillStyle='rgba(46,230,168,.10)';
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(inZ[ix(x,y)]) g.fillRect(x*cw,y*chh,cw+0.5,chh+0.5);
-  g.strokeStyle='rgba(60,255,185,1)'; g.lineWidth=2.6; g.beginPath();
-  const out=(x,y)=>x<0||y<0||x>=N||y>=N||!inZ[ix(x,y)];
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
-    if(!inZ[ix(x,y)]) continue;
-    if(out(x,y-1)){ g.moveTo(x*cw,y*chh);       g.lineTo((x+1)*cw,y*chh); }
-    if(out(x,y+1)){ g.moveTo(x*cw,(y+1)*chh);   g.lineTo((x+1)*cw,(y+1)*chh); }
-    if(out(x-1,y)){ g.moveTo(x*cw,y*chh);       g.lineTo(x*cw,(y+1)*chh); }
-    if(out(x+1,y)){ g.moveTo((x+1)*cw,y*chh);   g.lineTo((x+1)*cw,(y+1)*chh); }
-  }
-  g.stroke();
+  const inZ=drawZone(g,cf,st.remaining,w,h,res);
 
   // SPE: ячейки, до укрытия из которых успеваешь до прихода потока
   if(SCEN[scen].spe){
