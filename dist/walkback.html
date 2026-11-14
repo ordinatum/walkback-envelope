@@ -205,6 +205,7 @@ footer{grid-column:1/-1;background:var(--panel);padding:10px 18px}
     <div class="sec">
       <div class="sect">SAFE HAVENS</div>
       <button id="btnHavens" class="tog">HAVENS OFF</button>
+      <button id="btnPal" class="tog" title="Terrain colour ramp">GREYSCALE</button>
       <div class="scnote" id="havnote" style="font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.5"></div>
     </div>
 
@@ -798,6 +799,38 @@ function findPNR(){
 let map=null, envLayer=null, routeLayer=null, posMarker=null, pnrMarker=null, habMarker=null;
 let reliefCanvas=null;
 
+
+/* ── Палитры рельефа ──────────────────────────────────────────────────
+   MOLA — та же гипсометрическая шкала, что на цветных картах MOLA у NASA
+   (синий низ → зелёный → жёлтый → красный верх). Цвета сняты с тайлов
+   Mars_MGS_MOLA_ClrShade. VIKING — песочные тона съёмки Viking. MONO —
+   нейтральный серый: рельеф читается формой, а цвет не спорит с зелёной
+   зоной возврата.                                                      */
+const PALETTES={
+  mola:   {name:'MOLA COLOR', stops:[
+    [0.00,[ 24, 40,120]],[0.18,[ 30,110,180]],[0.34,[ 45,170,120]],
+    [0.50,[120,215, 95]],[0.64,[225,215, 90]],[0.80,[215,130, 65]],
+    [0.92,[200, 92, 79]],[1.00,[245,240,235]]]},
+  viking: {name:'VIKING',     stops:[
+    [0.00,[ 72, 40, 34]],[0.35,[142, 88, 62]],[0.70,[196,140, 96]],
+    [1.00,[240,212,176]]]},
+  mono:   {name:'GREYSCALE',  stops:[
+    [0.00,[ 28, 30, 34]],[0.50,[118,122,128]],[1.00,[236,238,242]]]}
+};
+let palette='mono';   // по умолчанию нейтральная: зона и маршрут читаются с проектора
+function hypso(t){
+  const s=PALETTES[palette].stops;
+  t=Math.max(0,Math.min(1,t));
+  for(let i=1;i<s.length;i++){
+    if(t<=s[i][0]){
+      const [t0,c0]=s[i-1], [t1,c1]=s[i];
+      const k=(t-t0)/((t1-t0)||1);
+      return [c0[0]+(c1[0]-c0[0])*k, c0[1]+(c1[1]-c0[1])*k, c0[2]+(c1[2]-c0[2])*k];
+    }
+  }
+  return s[s.length-1][1];
+}
+
 function drawRelief(){
   const c=document.getElementById('relief');
   if(!c) return;
@@ -833,8 +866,8 @@ function drawRelief(){
       let sh=(-zx*lx-zy*ly+lz)/nl;
       sh=Math.max(0.18,Math.min(1.18,sh*1.45));          // контрастнее
       const t=(z-mn)/span;
-      // гипсометрия: днище бордовое -> борта песочные
-      const r=(72+168*t)*sh, gg=(40+116*t)*sh, b=(34+78*t)*sh;
+      const [cr,cg,cb]=hypso(t);
+      const r=cr*sh, gg=cg*sh, b=cb*sh;
       const o=(py*SW+px)*4;
       img.data[o]=Math.min(255,r); img.data[o+1]=Math.min(255,gg);
       img.data[o+2]=Math.min(255,b); img.data[o+3]=255;
@@ -1292,6 +1325,17 @@ $('#overlay').addEventListener('click', e=>{
   buildRoute(); buildHavens(); resetCaches();
   $('#clickhint').textContent=`TARGET MOVED · ${(ROUTE_LEN/1000).toFixed(2)} km ONE WAY`;
   render();
+});
+
+
+/* Палитра рельефа: цветная гипсометрия MOLA, песочный Viking, нейтральный
+   серый. На проекторе и в печати серый часто читается лучше — зелёная зона
+   возврата не спорит с цветом подложки. */
+$('#btnPal').addEventListener('click',()=>{
+  const keys=Object.keys(PALETTES);
+  palette=keys[(keys.indexOf(palette)+1)%keys.length];
+  $('#btnPal').textContent=PALETTES[palette].name;
+  drawRelief();
 });
 
 initMap();
