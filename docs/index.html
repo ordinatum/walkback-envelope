@@ -438,12 +438,13 @@ const elevAt  = (x,y) => elev[ix(Math.max(0,Math.min(N-1,Math.round(x))),
 
 /* ── Маршрут выхода: от хабитата к научной цели ─────────────────────── */
 let HAB = {x:N*0.34, y:N*0.6};
-let TGT = {x:N*0.488, y:N*0.484};
+let TGT = {x:N*0.485, y:N*0.487};
 const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
 
 /* Маршрут строится от базы к цели. Цель задаётся кликом по карте, поэтому
    ROUTE/ROUTE_CUM/ROUTE_LEN пересчитываются, а не константы. */
 let ROUTE=[], ROUTE_CUM=[], ROUTE_LEN=0;
+let ROUTE_LEN_MAX=0;   // предел гипотетического продолжения выхода для PNR
 function buildRoute(){
   ROUTE.length=0;
   const bendAmp = Math.hypot(TGT.x-HAB.x, TGT.y-HAB.y)*0.16;
@@ -454,6 +455,7 @@ function buildRoute(){
   ROUTE_CUM=[0];
   for(let i=1;i<ROUTE.length;i++) ROUTE_CUM.push(ROUTE_CUM[i-1]+cellDist(ROUTE[i-1],ROUTE[i]));
   ROUTE_LEN=ROUTE_CUM[ROUTE_CUM.length-1];
+  ROUTE_LEN_MAX=ROUTE_LEN;
 }
 buildRoute();
 function routeAtDist(s){            // s: метры от хабитата вдоль маршрута
@@ -714,27 +716,43 @@ function stateAt(tMin){
 }
 
 /* ── Точка невозврата ───────────────────────────────────────────────────
-   PNR — первый момент на пути ТУДА, когда астронавт выходит за границу
-   зоны возврата (запас по худшему каналу пробивает неснижаемый резерв).
-   null — граница не достигается за выход.                               */
+   PNR — предел ВОЗВРАТА, а не свойство конкретного плана. Вопрос звучит
+   так: до какой минуты можно продолжать идти ОТ базы, сохраняя
+   возможность вернуться? Поэтому считаем гипотетическое продолжение
+   выхода наружу, а не фактическое расписание: иначе на коротком
+   маршруте, который целиком влезает в бюджет, PNR не наступал никогда —
+   и заголовок проекта оставался без ответа.
+
+   Критерии (любой наступивший):
+     1. ресурсный — худший канал пробивает неснижаемый резерв;
+     2. дозовый  — доза к моменту возвращения превысит порог прерывания;
+     3. SPE      — поток придёт раньше, чем получится дойти до укрытия.
+   null — предел не достигается за отведённое время выхода.            */
 function findPNR(){
-  const res=reservePct();
-  const S=SCEN[scen];
-  for(let m=0;m<=EVA_MAX;m++){
-    const p=planAt(m);
-    if(p.leg==='back'||p.phase==='home') break;
-    const st=stateAt(m);
-    // 1. ресурсный предел: худший канал пробивает неснижаемый резерв
-    if(st.marginPct<res) return m;
-    // 2. дозовый предел: к моменту возвращения домой накопленная доза
-    //    превысит порог прерывания. Доза — независимый канал, и выход
-    //    становится невозвратным по ней так же, как по воде.
-    const doseHome = st.dose + doseAt(m)*st.hBack;
-    if(doseHome>=DOSE_ABORT_MSV) return m;
-    // 3. SPE: поток придёт раньше, чем получится дойти до укрытия
-    if(S.spe && m>=SPE_REG && m<SPE_END){
+  const res=reservePct(), S=SCEN[scen], caps=capsOf(S);
+  const v=paceMs()*60;                       // метры в минуту
+  const u={water:0,co2:0,batt:0,o2:0};
+  let dose=0;
+  for(let m=1;m<=EVA_MAX;m++){
+    // гипотетическое продолжение движения наружу: s растёт, пока есть куда
+    const s=Math.min(m*v, ROUTE_LEN_MAX);
+    const pos=routeAtDist(s);
+    const grade=routeGrade(s,1);
+    const met=metabolicW({speedMs:paceMs(),gradePct:grade,loadKg:loadKg()});
+    const r=consumptionRates(met,{extTempC:tempAt(m),solarWm2:S.solar});
+    u.water+=r.water_kg_h/60; u.co2+=r.co2_g_h/60;
+    u.batt+=r.batt_wh_h/60;   u.o2+=r.o2_g_h/60;
+    dose+=doseRateMSvH(S.sky,speFluxOn(m))/60;
+
+    const need=needAt(pos);
+    if(!isFinite(need.h)) return m;           // возврата из этой точки нет вовсе
+    const rem={}; for(const k of KEYS) rem[k]=caps[k]-u[k];
+    const {worst}=evalMargin(rem,need,caps);
+    if(worst.pct<res) return m;               // 1. ресурсный предел
+    if(dose + doseRateMSvH(S.sky,speFluxOn(m))*need.h >= DOSE_ABORT_MSV) return m;  // 2. доза
+    if(S.spe && m>=SPE_REG && m<SPE_END){     // 3. укрытие недостижимо
       const left=Math.max(0,SPE_ARRIVE-m);
-      if(st.dBack>5 && st.hBack*60>left) return m;
+      if(need.d>5 && need.h*60>left) return m;
     }
   }
   return null;
@@ -1118,7 +1136,7 @@ function applySite(i){
   loadSite(i);
   // база и цель — в долях участка, чтобы работали на любой площадке
   HAB={x:N*0.34, y:N*0.6};
-  TGT={x:N*0.488, y:N*0.484};
+  TGT={x:N*0.485, y:N*0.487};
   buildRoute(); buildHavens(); resetCaches();
   const s=SITE_DEFS[i];
   $('#siteTag').textContent = s.name.toUpperCase()+' · '+
@@ -1143,7 +1161,17 @@ $('#overlay').addEventListener('click', e=>{
   const gx=(e.clientX-r.left)/r.width*N, gy=(e.clientY-r.top)/r.height*N;
   const d=Math.hypot(gx-HAB.x, gy-HAB.y);
   if(d<4){ $('#clickhint').textContent='TARGET TOO CLOSE TO THE HABITAT'; return; }
-  TGT={x:Math.max(1,Math.min(N-2,gx)), y:Math.max(1,Math.min(N-2,gy))};
+  // Границы: клик по самому краю не должен обрезаться к N-2 молча —
+  // крайние ячейки сетки просто недоступны для цели.
+  if(gx<1||gy<1||gx>N-1||gy>N-1){
+    $('#clickhint').textContent='TARGET OUTSIDE THE SURVEYED AREA'; return; }
+  // Цель на клетке, откуда нет конечной стоимости возврата (стена каньона
+  // круче порога непроходимости), не принимается: иначе бюджет печатал
+  // «deficit Infinity %».
+  const cand={x:Math.max(1,Math.min(N-2,gx)), y:Math.max(1,Math.min(N-2,gy))};
+  if(!isFinite(needAt(cand).h)){
+    $('#clickhint').textContent='TARGET UNREACHABLE — NO WALKABLE RETURN PATH'; return; }
+  TGT=cand;
   buildRoute(); buildHavens(); resetCaches();
   $('#clickhint').textContent=`TARGET MOVED · ${(ROUTE_LEN/1000).toFixed(2)} km ONE WAY`;
   render();
