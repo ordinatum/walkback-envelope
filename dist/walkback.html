@@ -188,9 +188,9 @@ footer{grid-column:1/-1;background:var(--panel);padding:10px 18px}
     <div class="sec">
       <div class="sect">MODEL ASSUMPTIONS</div>
       <div class="ctl"><div class="ctlh"><span>PAYLOAD MASS</span><b id="oMass">0 kg</b></div>
-        <input type="range" id="sMass" min="0" max="40" value="0"></div>
+        <input type="range" id="sMass" min="0" max="30" value="0"></div>
       <div class="ctl"><div class="ctlh"><span>WALKING PACE</span><b id="oPace">1.4 km/h</b></div>
-        <input type="range" id="sPace" min="8" max="30" value="14"></div>
+        <input type="range" id="sPace" min="8" max="30" value="17"></div>
       <div class="ctl"><div class="ctlh"><span>SAFETY RESERVE</span><b id="oRes">25 %</b></div>
         <input type="range" id="sRes" min="10" max="50" value="25"></div>
     </div>
@@ -390,12 +390,32 @@ const slope = new Float32Array(N*N);
 const ix = (x,y) => y*N+x;
 (function build(){
   for(let y=0;y<N;y++) for(let x=0;x<N;x++){
-    const dx=(x-N*0.5)/N, dy=(y-N*0.52)/N, r=Math.hypot(dx,dy);
-    const rim  = 165*Math.exp(-Math.pow((r-0.33)/0.07,2));
-    const bowl = -120*Math.exp(-r*r/0.035);
-    const ridge= 22*Math.sin(x*0.16+Math.sin(y*0.08))*Math.cos(y*0.11);
-    const und  = 14*noise(x*0.09,y*0.09)+7*noise(x*0.22,y*0.22);
-    elev[ix(x,y)] = 2400+rim+bowl+ridge+und;
+    const dx=(x-N*0.5)/N, dy=(y-N*0.52)/N;
+    // лёгкая эллиптичность и доворот — идеально круглый кратер выглядит
+    // сгенерированным, настоящие ударные структуры всегда искажены
+    const ang=0.38, ca=Math.cos(ang), sa=Math.sin(ang);
+    const rx=(dx*ca-dy*sa)*1.0, ry=(dx*sa+dy*ca)*1.14;
+    const r=Math.hypot(rx,ry);
+    // радиус вала гуляет по азимуту: фестончатый край, как у реальных кратеров
+    const az=Math.atan2(ry,rx);
+    const rimR=0.33+0.028*Math.sin(az*3+0.7)+0.017*Math.sin(az*7-1.2)
+                   +0.010*Math.sin(az*13+2.1);
+    const rim  = 168*Math.exp(-Math.pow((r-rimR)/0.068,2));
+    const bowl = -124*Math.exp(-r*r/0.034);
+    // террасы на внутреннем борту — характерный признак обрушения стенок
+    const terr = 16*Math.exp(-Math.pow((r-rimR*0.70)/0.035,2))
+               + 11*Math.exp(-Math.pow((r-rimR*0.48)/0.030,2));
+    // радиальные промоины на внешнем склоне
+    const gull = 13*Math.exp(-Math.pow((r-rimR*1.22)/0.10,2))
+                   *Math.sin(az*17+Math.sin(az*5));
+    const ridge= 17*Math.sin(x*0.16+Math.sin(y*0.08))*Math.cos(y*0.11);
+    // фрактальный шум: шесть октав, иначе поверхность читается как градиент
+    let und=0, amp=19, frq=0.055;
+    for(let o=0;o<6;o++){ und+=amp*(noise(x*frq+o*31.7, y*frq-o*17.3)-0.5);
+                          amp*=0.54; frq*=2.06; }
+    // мелкая шероховатость реголита
+    const grain = 2.2*(noise(x*0.85,y*0.85)-0.5);
+    elev[ix(x,y)] = 2400+rim+bowl+terr+gull+ridge+und+grain;
   }
   for(let y=0;y<N;y++) for(let x=0;x<N;x++){
     const gx=(elev[ix(Math.min(N-1,x+1),y)]-elev[ix(Math.max(0,x-1),y)])/(2*CELL_M);
@@ -469,11 +489,18 @@ const REF_TEMP_MIN = 180;
    трогается (аварийный запас). sky — доля неба: защита от радиации.      */
 const CACHE_FRAC = 0.5, HAVEN_STOP_MIN = 10;
 const HAVEN_DEFS = [
-  {id:'H1', name:'SHADED CREVICE',        f:0.30, sky:0.55},
-  {id:'H2', name:'SUBSURFACE CAVITY',     f:0.55, sky:0.35},
-  {id:'H3', name:'DENSE-SOIL PAD',        f:0.80, sky:0.75},
+  // H1 стоит НА маршруте — промежуточный склад, пополняет запасы на обратном пути.
+  {id:'H1', name:'SHADED CREVICE',    f:0.58, sky:0.55},
+  // H2 и H3 вынесены В СТОРОНУ от маршрута, далеко от базы. Смысл укрытия
+  // по ТЗ п.19 — расширить операционный радиус: пока укрытия стоят вплотную
+  // к базе, зона возврата от них совпадает с зоной от базы и ничего не даёт.
+  // Эти два находятся за валом кратера, куда от базы идти дорого.
+  {id:'H2', name:'SUBSURFACE CAVITY', c:{x:N*0.88, y:N*0.18}, sky:0.35},
+  {id:'H3', name:'DENSE-SOIL PAD',    c:{x:N*0.80, y:N*0.84}, sky:0.75},
 ];
-const HAVENS = HAVEN_DEFS.map(d=>({...d, s:d.f*ROUTE_LEN, pos:routeAtDist(d.f*ROUTE_LEN)}));
+const HAVENS = HAVEN_DEFS.map(d=> d.c
+  ? {...d, s:null, pos:d.c}                                   // вне маршрута
+  : {...d, s:d.f*ROUTE_LEN, pos:routeAtDist(d.f*ROUTE_LEN)}); // на маршруте
 let havensOn = false;   // по умолчанию выкл.: с цепочкой укрытий вдоль маршрута зона не сжимается и PNR не наступает
 
 /* ── План выхода по ЧАСАМ: темп × время ─────────────────────────────────
@@ -488,7 +515,7 @@ function schedule(){
   segs.push({t0:0,t1:tOut,s0:0,s1:ROUTE_LEN,phase:'out',leg:'out'}); t=tOut;
   segs.push({t0:t,t1:t+DWELL_MIN,s0:ROUTE_LEN,s1:ROUTE_LEN,phase:'dwell',leg:'out'}); t+=DWELL_MIN;
   let s=ROUTE_LEN;
-  if(havensOn) for(const h of [...HAVENS].sort((a,b)=>b.s-a.s)){
+  if(havensOn) for(const h of HAVENS.filter(h=>h.s!=null).sort((a,b)=>b.s-a.s)){
     const dt=(s-h.s)/v;
     segs.push({t0:t,t1:t+dt,s0:s,s1:h.s,phase:'back',leg:'back'}); t+=dt;
     segs.push({t0:t,t1:t+HAVEN_STOP_MIN,s0:h.s,s1:h.s,phase:'stop',leg:'back',hv:h}); t+=HAVEN_STOP_MIN;
@@ -697,36 +724,78 @@ function drawRelief(){
   const w=c.clientWidth, h=c.clientHeight;
   if(!w||!h) return;
   c.width=w*dpr; c.height=h*dpr;
-  const g=c.getContext('2d'); g.scale(dpr,dpr);
-  const img=g.createImageData(N,N);
+  const g=c.getContext('2d');
+
   let mn=Infinity,mx=-Infinity;
   for(let i=0;i<N*N;i++){ if(elev[i]<mn)mn=elev[i]; if(elev[i]>mx)mx=elev[i]; }
-  // освещение с северо-запада, как принято в планетной картографии
-  const lx=-0.6, ly=-0.6, lz=0.52;
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
-    const gx=(elevAt(x+1,y)-elevAt(x-1,y))/(2*CELL_M);
-    const gy=(elevAt(x,y+1)-elevAt(x,y-1))/(2*CELL_M);
-    const nl=Math.hypot(gx,gy,1);
-    let sh=(-gx*lx-gy*ly+lz)/nl; sh=Math.max(0.15,Math.min(1,sh*1.25));
-    const t=(elev[ix(x,y)]-mn)/((mx-mn)||1);
-    // гипсометрия: низины тёмно-бордовые, вершины песочные
-    const r=(78+150*t)*sh, gg=(46+104*t)*sh, b=(40+70*t)*sh;
-    const o=(y*N+x)*4;
-    img.data[o]=r; img.data[o+1]=gg; img.data[o+2]=b; img.data[o+3]=255;
-  }
-  const tmp=document.createElement('canvas'); tmp.width=N; tmp.height=N;
-  tmp.getContext('2d').putImageData(img,0,0);
-  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  g.clearRect(0,0,w,h);
-  g.drawImage(tmp,0,0,w,h);
-  // изогипсы через каждые 20 м
-  g.strokeStyle='rgba(0,0,0,.22)'; g.lineWidth=0.7;
-  for(let lvl=Math.ceil(mn/20)*20; lvl<mx; lvl+=20){
-    g.beginPath();
-    for(let y=0;y<N-1;y++) for(let x=0;x<N-1;x++){
-      const a=elev[ix(x,y)], b2=elev[ix(x+1,y)];
-      if((a-lvl)*(b2-lvl)<0){ g.moveTo(x/N*w,y/N*h); g.lineTo((x+1)/N*w,y/N*h); }
+
+  /* Рельеф рисуется в ПИКСЕЛЬНОМ разрешении, а не в разрешении сетки.
+     Сетка 84x84, растянутая на ~1300 px, давала размытие в 16 раз —
+     кратер превращался в однотонное пятно. Здесь высота берётся
+     билинейно (elevBil) для каждого пикселя буфера, поэтому отмывка
+     и гипсометрия остаются резкими на любом размере окна.            */
+  const SW=Math.max(1,Math.round(c.width/2)), SH=Math.max(1,Math.round(c.height/2));
+  const img=g.createImageData(SW,SH);
+  const span=(mx-mn)||1;
+  const lx=-0.55, ly=-0.55, lz=0.63;      // освещение с северо-запада
+  const EPS=0.35;                          // шаг градиента в долях ячейки
+  const dM=EPS*CELL_M*2;
+
+  for(let py=0;py<SH;py++){
+    const gy=py/(SH-1)*(N-1);
+    for(let px=0;px<SW;px++){
+      const gx=px/(SW-1)*(N-1);
+      const z =elevBil(gx,gy);
+      const zx=(elevBil(gx+EPS,gy)-elevBil(gx-EPS,gy))/dM;
+      const zy=(elevBil(gx,gy+EPS)-elevBil(gx,gy-EPS))/dM;
+      const nl=Math.hypot(zx,zy,1);
+      let sh=(-zx*lx-zy*ly+lz)/nl;
+      sh=Math.max(0.18,Math.min(1.18,sh*1.45));          // контрастнее
+      const t=(z-mn)/span;
+      // гипсометрия: днище бордовое -> борта песочные
+      const r=(72+168*t)*sh, gg=(40+116*t)*sh, b=(34+78*t)*sh;
+      const o=(py*SW+px)*4;
+      img.data[o]=Math.min(255,r); img.data[o+1]=Math.min(255,gg);
+      img.data[o+2]=Math.min(255,b); img.data[o+3]=255;
     }
+  }
+  const tmp=document.createElement('canvas'); tmp.width=SW; tmp.height=SH;
+  tmp.getContext('2d').putImageData(img,0,0);
+  g.setTransform(1,0,0,1,0,0);
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  g.clearRect(0,0,c.width,c.height);
+  g.drawImage(tmp,0,0,c.width,c.height);
+
+  /* Изогипсы через marching-squares по плотной сетке: по сетке ячеек
+     они получались ступенчатыми обрывками. */
+  g.scale(dpr,dpr);
+  const STEP=25;                           // метров между горизонталями
+  const M=Math.min(260, N*3);              // узлов на сторону
+  const hz=new Float32Array((M+1)*(M+1));
+  for(let j=0;j<=M;j++) for(let i=0;i<=M;i++)
+    hz[j*(M+1)+i]=elevBil(i/M*(N-1), j/M*(N-1));
+  const PX=i=>i/M*w, PY=j=>j/M*h;
+  for(let lvl=Math.ceil(mn/STEP)*STEP; lvl<mx; lvl+=STEP){
+    const major=Math.abs(lvl%100)<1e-6;
+    g.beginPath();
+    for(let j=0;j<M;j++) for(let i=0;i<M;i++){
+      const a=hz[j*(M+1)+i], b=hz[j*(M+1)+i+1],
+            d=hz[(j+1)*(M+1)+i], e=hz[(j+1)*(M+1)+i+1];
+      // горизонтальный переход по верхнему ребру
+      if((a-lvl)*(b-lvl)<0){
+        const f=(lvl-a)/(b-a);
+        const x1=PX(i+f), y1=PY(j);
+        // вертикальный переход по левому ребру
+        if((a-lvl)*(d-lvl)<0){ const f2=(lvl-a)/(d-a); g.moveTo(x1,y1); g.lineTo(PX(i),PY(j+f2)); }
+        else if((b-lvl)*(e-lvl)<0){ const f2=(lvl-b)/(e-b); g.moveTo(x1,y1); g.lineTo(PX(i+1),PY(j+f2)); }
+        else if((d-lvl)*(e-lvl)<0){ const f2=(lvl-d)/(e-d); g.moveTo(x1,y1); g.lineTo(PX(i+f2),PY(j+1)); }
+      } else if((a-lvl)*(d-lvl)<0 && (b-lvl)*(e-lvl)<0){
+        const f1=(lvl-a)/(d-a), f2=(lvl-b)/(e-b);
+        g.moveTo(PX(i),PY(j+f1)); g.lineTo(PX(i+1),PY(j+f2));
+      }
+    }
+    g.strokeStyle=major?'rgba(0,0,0,.42)':'rgba(0,0,0,.20)';
+    g.lineWidth=major?1.0:0.6;
     g.stroke();
   }
 }
