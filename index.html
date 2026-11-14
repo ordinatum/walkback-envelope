@@ -80,6 +80,8 @@ aside{background:var(--panel);overflow-y:auto;padding:0 0 10px}
 .vtag.long{font-size:17px}
 .spebox{display:none;margin-top:8px;padding:8px 10px;border:1px solid var(--abort);font-size:10px;line-height:1.5;letter-spacing:.05em;color:var(--tx)}
 .spebox b{color:var(--abort)}
+.planwarn{margin:7px 0 0;padding:6px 9px;border:1px solid #ff4d5e;border-radius:3px;
+  background:rgba(255,77,94,.12);color:#ff8b96;font-size:10px;letter-spacing:.06em;line-height:1.45}
 .vmeta{font-size:10px;color:var(--dim);margin-top:7px;letter-spacing:.07em}
 
 .sec{padding:13px 17px;border-top:1px solid var(--line)}
@@ -177,6 +179,7 @@ footer{grid-column:1/-1;background:var(--panel);padding:10px 18px}
     <div class="verdict" id="verdict">
       <div class="vtag" id="vtag">GO</div>
       <div class="vtext" id="vtext">—</div>
+      <div class="planwarn" id="planwarn" style="display:none"></div>
       <div class="vmeta" id="vmeta">—</div>
       <div class="spebox" id="spebox"></div>
     </div>
@@ -731,6 +734,27 @@ function findPNR(){
   return null;
 }
 
+/* Осуществим ли ЗАПЛАНИРОВАННЫЙ выход целиком.
+
+   Вердикт GO/CAUTION/ABORT отвечает на вопрос «можешь ли вернуться
+   ПРЯМО СЕЙЧАС». Стоя в хабитате ответ тривиально «да» — отсюда зелёный
+   GO даже тогда, когда научная цель лежит за точкой невозврата и план
+   заведомо невыполним. Эта проверка отвечает на другой вопрос: доживёт
+   ли астронавт до конца маршрута, если выйдет по плану.
+
+   План невыполним, если точка невозврата наступает раньше, чем он
+   развернётся у цели: пересечь её на пути ТУДА — значит уже не вернуться. */
+function planFeasible(pnr){
+  const segs=schedule();
+  const turn=segs.find(g=>g.phase==='dwell');
+  const tTurn=turn?turn.t1:EVA_MAX;        // момент разворота у цели
+  if(pnr!==null && pnr<=tTurn) return {ok:false, pnr, tTurn};
+  // и не должен прийти домой с пробитым резервом
+  const end=stateAt(EVA_MAX);
+  if(end.marginPct<0) return {ok:false, pnr, tTurn, deficit:true};
+  return {ok:true, pnr, tTurn};
+}
+
 /* ── Подложка рельефа ───────────────────────────────────────────────────
    Тайл MOLA на z7 покрывает ~167 км при разрешении 463 м/пиксель, а наш
    участок — 10 км. Растягивать его бессмысленно: это будет один размытый
@@ -1082,6 +1106,7 @@ function render(){
   const t=+$('#sTime').value;
   const st=stateAt(t);
   const pnr=findPNR();
+  const feas=planFeasible(pnr);
   const res=reservePct();
 
   $('#tlv').textContent=fmt(t);
@@ -1161,6 +1186,15 @@ function render(){
     : m>=0
     ? `Margin below ${res} % reserve. Limiting consumable: ${limName}. Begin return now.`
     : `Insufficient consumables to reach habitat. Limiting: ${limName}, deficit ${Math.abs(Math.round(m))} %.`;
+  // Предупреждение уровня плана: показываем всегда, когда маршрут
+  // невыполним, даже если прямо сейчас вердикт зелёный.
+  const warnEl=$('#planwarn');
+  if(!feas.ok && !atHome){
+    warnEl.style.display='';
+    warnEl.textContent = feas.deficit
+      ? `PLANNED TRAVERSE NOT SURVIVABLE — returns with consumables below reserve`
+      : `PLANNED TRAVERSE NOT SURVIVABLE — target lies ${fmt(feas.tTurn-feas.pnr)} beyond the point of no return`;
+  } else warnEl.style.display='none';
   $('#vmeta').textContent = (spe&&spe.unreachable)
     ? `SPE · FLUX ${spe.left>0?'IN '+fmt(spe.left):'ARRIVED'} · SHELTER ${fmt(spe.reach)} · DOSE ${st.dose.toFixed(2)} mSv`
     : doseAbort
