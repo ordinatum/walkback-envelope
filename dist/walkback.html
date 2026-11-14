@@ -435,8 +435,8 @@ const elevAt  = (x,y) => elev[ix(Math.max(0,Math.min(N-1,Math.round(x))),
                                   Math.max(0,Math.min(N-1,Math.round(y))))] || 2400;
 
 /* ── Маршрут выхода: от хабитата к научной цели ─────────────────────── */
-let HAB = {x:N*0.34, y:N*0.60};
-let TGT = {x:N*0.58, y:N*0.42};
+let HAB = {x:N*0.34, y:N*0.6};
+let TGT = {x:N*0.488, y:N*0.484};
 const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
 
 /* Маршрут строится от базы к цели. Цель задаётся кликом по карте, поэтому
@@ -1088,8 +1088,8 @@ function resetCaches(){
 function applySite(i){
   loadSite(i);
   // база и цель — в долях участка, чтобы работали на любой площадке
-  HAB={x:N*0.34, y:N*0.60};
-  TGT={x:N*0.58, y:N*0.42};
+  HAB={x:N*0.34, y:N*0.6};
+  TGT={x:N*0.488, y:N*0.484};
   buildRoute(); buildHavens(); resetCaches();
   const s=SITE_DEFS[i];
   $('#siteTag').textContent = s.name.toUpperCase()+' · '+
