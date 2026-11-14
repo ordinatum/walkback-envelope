@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WALKBACK ENVELOPE — EVA Return Capability</title>
+<style>
+:root{
+  --bg:#0a0c10; --panel:#11151c; --panel2:#161b24; --line:#222a36;
+  --tx:#e8ecf2; --dim:#7d8799; --dim2:#525d70;
+  --go:#2ee6a8; --caution:#ffc247; --abort:#ff4d5e;
+  --accent:#ff7a45; --blue:#4da3ff;
+  --mono:'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:13px/1.45 var(--mono);
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{display:grid;grid-template-columns:1fr 372px;grid-template-rows:auto 1fr auto;
+  height:100vh;gap:1px;background:var(--line)}
+header{grid-column:1/-1;background:var(--panel);padding:11px 18px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+h1{font-size:15px;letter-spacing:.14em;font-weight:600}
+h1 em{color:var(--accent);font-style:normal}
+.tag{font-size:10px;letter-spacing:.13em;color:var(--dim);padding:3px 8px;
+  border:1px solid var(--line);border-radius:3px}
+.live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:10px;
+  letter-spacing:.12em;color:var(--dim)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--go);
+  box-shadow:0 0 9px var(--go);animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.stage{background:var(--panel);position:relative;overflow:hidden;min-height:300px}
+#relief,#overlay{position:absolute;inset:0;width:100%;height:100%;display:block}
+#overlay{pointer-events:none}
+.inset{position:absolute;left:14px;top:14px;z-index:400;width:122px;
+  border:1px solid var(--line);border-radius:4px;overflow:hidden;
+  background:rgba(10,12,16,.9)}
+.inseth{font-size:8.5px;letter-spacing:.12em;color:var(--dim2);padding:4px 7px;
+  border-bottom:1px solid var(--line)}
+.inset img{display:block;width:100%;height:92px;object-fit:cover;opacity:.9}
+.insetbox{position:absolute;left:50%;top:calc(50% + 10px);width:13px;height:13px;
+  transform:translate(-50%,-50%);border:1.5px solid var(--accent);border-radius:2px;
+  box-shadow:0 0 0 1px rgba(10,12,16,.8)}
+.mapnote{position:absolute;left:14px;bottom:12px;z-index:400;font-size:9.5px;
+  letter-spacing:.1em;color:var(--dim);background:rgba(10,12,16,.82);
+  padding:5px 9px;border:1px solid var(--line);border-radius:3px;pointer-events:none}
+.legend{position:absolute;right:14px;top:14px;z-index:400;background:rgba(10,12,16,.88);
+  border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:10px;
+  letter-spacing:.07em;pointer-events:none}
+.legend div{display:flex;align-items:center;gap:8px;margin:4px 0;color:var(--dim)}
+.sw{width:16px;height:9px;border-radius:2px}
+
+aside{background:var(--panel);overflow-y:auto;padding:0 0 10px}
+.verdict{padding:15px 17px;border-left:4px solid var(--go);background:rgba(46,230,168,.07)}
+.verdict.caution{border-color:var(--caution);background:rgba(255,194,71,.07)}
+.verdict.abort{border-color:var(--abort);background:rgba(255,77,94,.09)}
+.vtag{font-size:25px;font-weight:700;letter-spacing:.07em;color:var(--go)}
+.verdict.caution .vtag{color:var(--caution)} .verdict.abort .vtag{color:var(--abort)}
+.vtext{font-size:11.5px;color:var(--tx);margin-top:5px;line-height:1.5}
+.tog{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--dim);padding:8px;font:inherit;font-size:11px;letter-spacing:.1em;cursor:pointer}
+.tog.on{background:rgba(143,123,255,.15);border-color:#8f7bff;color:#b9adff}
+.vtag.long{font-size:17px}
+.spebox{display:none;margin-top:8px;padding:8px 10px;border:1px solid var(--abort);font-size:10px;line-height:1.5;letter-spacing:.05em;color:var(--tx)}
+.spebox b{color:var(--abort)}
+.vmeta{font-size:10px;color:var(--dim);margin-top:7px;letter-spacing:.07em}
+
+.sec{padding:13px 17px;border-top:1px solid var(--line)}
+.sect{font-size:9.5px;letter-spacing:.17em;color:var(--dim2);margin-bottom:10px}
+.ch{margin:9px 0}
+.chrow{display:flex;justify-content:space-between;align-items:baseline;font-size:11px}
+.chname{color:var(--dim)}
+.chval{font-variant-numeric:tabular-nums}
+.chval b{font-size:13.5px;font-weight:600}
+.chval i{font-style:normal;color:var(--dim2);font-size:10px}
+.bar{height:4px;background:var(--panel2);border-radius:2px;margin-top:5px;overflow:hidden}
+.bar span{display:block;height:100%;background:var(--go);transition:width .25s,background .25s}
+.ch.limit .chname{color:var(--abort)}
+.ch.limit .bar span{background:var(--abort)}
+.ch.warn .bar span{background:var(--caution)}
+.lim{font-size:9px;color:var(--abort);letter-spacing:.1em;margin-left:6px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.kv{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:9px 11px}
+.kvk{font-size:9px;letter-spacing:.12em;color:var(--dim2)}
+.kvv{font-size:16px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+.kvv em{font-size:10px;color:var(--dim);font-style:normal;font-weight:400}
+
+.ctl{margin:13px 0}
+.ctlh{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);
+  letter-spacing:.09em;margin-bottom:6px}
+.ctlh b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;-webkit-appearance:none;height:3px;background:var(--line);
+  border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+
+.scen{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+.scen button{background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+  font:10px/1.3 var(--mono);letter-spacing:.07em;padding:8px 6px;border-radius:3px;
+  cursor:pointer;transition:.15s}
+.scen button:hover{border-color:var(--dim2);color:var(--tx)}
+.scen button.on{background:rgba(255,122,69,.15);border-color:var(--accent);color:var(--accent)}
+
+footer{grid-column:1/-1;background:var(--panel);padding:10px 18px}
+.tl{display:flex;align-items:center;gap:14px}
+.tl input{flex:1}
+.tlv{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;min-width:74px}
+.tll{font-size:9px;letter-spacing:.13em;color:var(--dim2)}
+.strips{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  margin-top:10px;border:1px solid var(--line)}
+.strip{background:var(--panel2);padding:7px 10px}
+.striph{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.1em;
+  color:var(--dim2);margin-bottom:4px}
+.striph b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums}
+.strip canvas{width:100%;height:34px;display:block}
+
+.src{font-size:9px;color:var(--dim2);line-height:1.6;padding:11px 17px;
+  border-top:1px solid var(--line)}
+.src b{color:var(--dim)}
+.real{color:var(--go)} .syn{color:var(--caution)}
+
+@media(max-width:1000px){.wrap{grid-template-columns:1fr;grid-template-rows:auto 46vh auto auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>WALKBACK <em>ENVELOPE</em></h1>
+    <span class="tag" id="siteTag">JEZERO · 18.44°N 77.45°E</span>
+    <span class="tag">RETURN CAPABILITY</span>
+    <div class="live"><span class="dot"></span><span id="liveTag">MODEL LIVE</span></div>
+  </header>
+
+  <div class="stage">
+    <canvas id="relief"></canvas>
+    <canvas id="overlay"></canvas>
+    <div class="inset">
+      <div class="inseth">CONTEXT · MOLA</div>
+      <img id="molaTile" alt=""/>
+      <div class="insetbox"></div>
+    </div>
+    <div class="legend">
+      <div><span class="sw" style="background:rgba(46,230,168,.55)"></span>WALKBACK ENVELOPE</div>
+      <div><span class="sw" style="background:var(--accent)"></span>EVA TRAVERSE</div>
+      <div><span class="sw" style="background:var(--abort)"></span>POINT OF NO RETURN</div>
+      <div><span class="sw" style="background:var(--blue)"></span>HABITAT</div>
+    </div>
+    <div class="mapnote" id="mapnote">MOLA BASEMAP — NASA DATA · LOCAL RELIEF SYNTHETIC</div>
+  </div>
+
+  <aside>
+    <div class="verdict" id="verdict">
+      <div class="vtag" id="vtag">GO</div>
+      <div class="vtext" id="vtext">—</div>
+      <div class="vmeta" id="vmeta">—</div>
+      <div class="spebox" id="spebox"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sect">RETURN BUDGET · FOUR CHANNELS</div>
+      <div id="channels"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sect">CURRENT STATE</div>
+      <div class="grid2">
+        <div class="kv"><div class="kvk">RANGE FROM HABITAT</div><div class="kvv" id="kRange">—<em> km</em></div></div>
+        <div class="kv"><div class="kvk">WALKBACK TIME</div><div class="kvv" id="kBack">—<em> h</em></div></div>
+        <div class="kv"><div class="kvk">METABOLIC RATE</div><div class="kvv" id="kMet">—<em> W</em></div></div>
+        <div class="kv"><div class="kvk">CUMULATIVE DOSE</div><div class="kvv" id="kDose">—<em> mSv</em></div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sect">SCENARIO</div>
+      <div class="scen" id="scenarios"></div>
+      <div class="scnote" id="scnote" style="font-size:9.5px;color:var(--dim);margin-top:6px;min-height:12px"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sect">SAFE HAVENS</div>
+      <button id="btnHavens" class="tog">HAVENS OFF</button>
+      <div class="scnote" id="havnote" style="font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.5"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sect">MODEL ASSUMPTIONS</div>
+      <div class="ctl"><div class="ctlh"><span>PAYLOAD MASS</span><b id="oMass">0 kg</b></div>
+        <input type="range" id="sMass" min="0" max="40" value="0"></div>
+      <div class="ctl"><div class="ctlh"><span>WALKING PACE</span><b id="oPace">1.4 km/h</b></div>
+        <input type="range" id="sPace" min="8" max="30" value="14"></div>
+      <div class="ctl"><div class="ctlh"><span>SAFETY RESERVE</span><b id="oRes">25 %</b></div>
+        <input type="range" id="sRes" min="10" max="50" value="25"></div>
+    </div>
+
+    <div class="src">
+      <b>DATA SOURCES</b><br/>
+      <span class="real">●</span> MOLA basemap — NASA Trek tiles (real)<br/>
+      <span class="real">●</span> Dose 0.0267 mSv/h — MSL RAD, Gale crater<br/>
+      <span class="real">●</span> Metabolic rates — Apollo EVA measurements, 780–1200 BTU/h<br/>
+      <span class="syn">●</span> Elevation and slope field — synthetic<br/>
+      <span class="syn">●</span> Suit consumable capacities — design estimates
+    </div>
+  </aside>
+
+  <footer>
+    <div class="tl">
+      <div><div class="tll">EVA ELAPSED</div><div class="tlv" id="tlv">00:00</div></div>
+      <input type="range" id="sTime" min="0" max="360" value="0">
+      <div style="text-align:right"><div class="tll">PNR</div>
+        <div class="tlv" id="tlPnr" style="font-size:12px">—</div></div>
+    </div>
+    <div class="strips">
+      <div class="strip"><div class="striph"><span>SURFACE TEMP</span><b id="vTemp">—</b></div><canvas id="cTemp"></canvas></div>
+      <div class="strip"><div class="striph"><span id="doseLbl">DOSE RATE</span><b id="vDose">—</b></div><canvas id="cDose"></canvas></div>
+      <div class="strip"><div class="striph"><span>DUST OPACITY</span><b id="vDust">—</b></div><canvas id="cDust"></canvas></div>
+    </div>
+  </footer>
+</div>
+
+<script type="module">
+/* ── physics.mjs (inline) ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   WALKBACK ENVELOPE — физическое ядро
+   Четыре канала расходуемых ресурсов. Все величины в СИ, без «процентов».
+
+   Источники констант:
+     Apollo EVA metabolic rates .......... 780–1200 BTU/ч (замеры на Луне)
+     MSL RAD, кратер Гейла ............... 0.64 ± 0.12 мЗв/сут = 0.0267 мЗв/ч
+     Теплота испарения воды (мембранный
+       испаритель, 0 °C…+10 °C) .......... 2450 кДж/кг
+     Калорический эквивалент O2 .......... 20.9 кДж/л STPD
+   ───────────────────────────────────────────────────────────────────────── */
+
+const PHYS = {
+  BTU_W: 0.293071,
+  MARS_G: 3.721,            // м/с²
+  EARTH_G: 9.807,
+  MARS_R: 3396000,          // м
+  // На Марсе давление (≈6–10 мбар) выше тройной точки воды (6.1 мбар), поэтому
+  // сублиматор неприменим; марсианские скафандры используют мембранный
+  // испаритель — вода испаряется, скрытая теплота ≈ 2.45 МДж/кг.
+  H2O_EVAP: 2450e3,         // Дж/кг — теплота испарения
+  O2_KJ_PER_L: 20.9,        // кДж на литр O2 (STPD)
+  O2_G_PER_L: 1.429,
+  RQ: 0.85,                 // респираторный коэффициент
+  CO2_PER_O2_MASS: 44 / 32, // молярные массы
+  DOSE_MSV_H: 0.0267,       // MSL RAD, открытая поверхность
+  SUIT_BASE_W: 100,         // вентилятор, насос, связь, авионика
+};
+
+/* ── Метаболизм ───────────────────────────────────────────────────────────
+   Уравнение Пандольфа, адаптированное под 0.38 g.
+   Гравитационно-зависимые члены (подъём веса, работа против уклона)
+   масштабируются по g. Инерционный член (разгон/торможение массы
+   скафандра) от g НЕ зависит — это ключевая поправка: наивное
+   умножение всей формулы на 0.38 даёт заниженный расход.        */
+function metabolicW({ bodyKg = 80, suitKg = 60, loadKg = 0,
+                             speedMs = 0.39, gradePct = 0, terrain = 1.1,
+                             g = PHYS.MARS_G } = {}) {
+  const W = bodyKg, L = suitKg + loadKg;
+  const gRatio = g / PHYS.EARTH_G;
+
+  // базовый метаболизм покоя — от g не зависит
+  const resting = 1.0 * W;
+  // несение груза: гравитационная составляющая
+  const carry = 2.0 * (W + L) * Math.pow(L / W, 2) * gRatio;
+  // горизонтальное движение: инерция (не зависит от g) + трение о грунт
+  const inertial = terrain * (W + L) * 1.5 * speedMs * speedMs;
+  // работа против уклона: чисто гравитационная
+  const climb = terrain * (W + L) * 0.35 * speedMs * gradePct * gRatio;
+
+  // спуск частично возвращает энергию, но круче −20% снова дорожает (торможение)
+  let total = resting + carry + inertial + climb;
+  if (gradePct < 0) {
+    const brake = Math.max(0, (-gradePct - 12)) * 0.9 * (W + L) * speedMs * gRatio * 0.01;
+    total = resting + carry + inertial + climb * 0.35 + brake;
+  }
+  // скафандр добавляет накладные расходы на преодоление собственной жёсткости
+  return Math.max(resting, total) * 1.18;
+}
+
+/* ── Расход по четырём каналам ───────────────────────────────────────── */
+function consumptionRates(metW, { extTempC = -60, solarWm2 = 420,
+                                         evaporatorEff = 0.82 } = {}) {
+  // O2: из метаболической мощности через калорический эквивалент
+  const kJ_h = metW * 3.6;
+  const o2_l_h = kJ_h / PHYS.O2_KJ_PER_L;
+  const o2_g_h = o2_l_h * PHYS.O2_G_PER_L;
+
+  // CO2: через респираторный коэффициент
+  const co2_g_h = o2_g_h * PHYS.RQ * PHYS.CO2_PER_O2_MASS;
+
+  // Тепловая нагрузка на мембранный испаритель.
+  // Скафандр многослойно изолирован (MLI), поэтому пассивный сброс тепла
+  // в космос мал — порядка 60-110 Вт, а не сотни, как даёт расчёт по
+  // Стефану-Больцману для неизолированной оболочки. Весь остальной тепловой
+  // поток отводится испарением воды. В нагрузку входят ВСЕ источники тепла:
+  // метаболизм целиком (внешней механической работы на уровне скафандра нет —
+  // она рассеивается в грунт и в тело, множитель 0.85 не обоснован) и 100 Вт
+  // электроники скафандра, которые списываются с батареи и превращаются в тепло.
+  // Ориентир: Apollo PLSS расходовал ~0.5 кг/ч воды при средней нагрузке выхода.
+  const solarGain = solarWm2 * 0.85 * 0.30;          // площадь×поглощение
+  const passiveLoss = 60 + Math.max(0, (-extTempC - 20)) * 0.75;
+  const heatW = Math.max(80, metW + PHYS.SUIT_BASE_W + solarGain - passiveLoss);
+  const water_kg_h = (heatW * 3600) / (PHYS.H2O_EVAP * evaporatorEff);
+
+  // Батарея: базовая нагрузка + насос прокачки теплоносителя
+  const batt_wh_h = PHYS.SUIT_BASE_W + heatW * 0.045;
+
+  return { o2_g_h, co2_g_h, water_kg_h, batt_wh_h, heatW, metW };
+}
+
+/* ── Какой канал ограничивает ───────────────────────────────────────────
+   Главный вывод предварительного расчёта: кислорода заведомо в избытке
+   для 6-часового выхода. Реальные ограничители — охлаждающая вода,
+   ресурс скруббера и батарея. Функция возвращает виновника по имени. */
+const CHANNELS = [
+  { key: 'water', label: 'Cooling water', unit: 'kg', rate: 'water_kg_h' },
+  { key: 'co2',   label: 'CO₂ scrubber',   unit: 'g',  rate: 'co2_g_h' },
+  { key: 'batt',  label: 'Battery',        unit: 'Wh', rate: 'batt_wh_h' },
+  { key: 'o2',    label: 'Oxygen',         unit: 'g',  rate: 'o2_g_h' },
+];
+
+function endurance(remaining, rates) {
+  let worst = { hours: Infinity, key: null, label: null };
+  const per = {};
+  for (const ch of CHANNELS) {
+    const r = rates[ch.rate];
+    const h = r > 0 ? remaining[ch.key] / r : Infinity;
+    per[ch.key] = h;
+    if (h < worst.hours) worst = { hours: h, key: ch.key, label: ch.label };
+  }
+  return { perChannel: per, limiting: worst };
+}
+
+/* ── Доза ─────────────────────────────────────────────────────────────────
+   Геометрический фактор затенения: у стены кратера или в каньоне видимая
+   часть неба меньше, значит поток GCR ниже. skyFraction = 1 на открытой
+   равнине, ~0.5 у высокой стенки.                                        */
+function doseRateMSvH(skyFraction = 1, speEvent = false) {
+  const base = PHYS.DOSE_MSV_H * Math.max(0.35, Math.min(1, skyFraction));
+  return speEvent ? base * 80 : base;   // солнечная протонная вспышка
+}
+
+/* ── Точка невозврата ────────────────────────────────────────────────────
+   Строгое определение: PNR — момент, когда стоимость возврата по ХУДШЕМУ
+   каналу плюс резерв равна остатку.
+   Реализация бинарного поиска живёт в UI (index.html), т.к. ей нужен
+   доступ к состоянию маршрута и сценария. Здесь — только формулировка. */
+
+/* ── /physics.mjs ── */
+
+const $ = s => document.querySelector(s);
+const SITE = {lat:18.44, lon:77.45};
+const EVA_MAX = 360;                      // минут
+// Размер ячейки выбран так, чтобы участок (N×CELL) покрывал ~10 км —
+// реальный масштаб пешего выхода, и при этом попадал в несколько
+// тайлов MOLA (463 м/пиксель), а не растягивал один.
+const CELL_M_TARGET = 120;
+const CELL_DEG = CELL_M_TARGET / (2*Math.PI*PHYS.MARS_R/360);
+const CELL_M = CELL_DEG * (2*Math.PI*PHYS.MARS_R/360);
+const N = 84;
+
+/* ── Сценарии ───────────────────────────────────────────────────────── */
+const SCEN = {
+  // Ёмкости: вода — самый узкий канал в штатном режиме (расчётная ёмкость 5.6 кг). Остальные
+  // сценарии меняют ТОЛЬКО названный канал. У скафандра нет солнечной панели:
+  // в бурю батарея меньше из-за холода и работы обогрева, а не из-за инсоляции.
+  nominal:{label:'NOMINAL',    water:5.6, co2:640, batt:1100, o2:560, sky:1,   spe:false, dust:0.4, solar:420},
+  storm:  {label:'DUST STORM',water:5.6, co2:640, batt:620,  o2:560, sky:1,   spe:false, dust:5.0, solar:3,
+           note:'Battery derated: cold soak + heater load (suit has no solar panel)'},
+  scrub:  {label:'SCRUBBER FAILURE',water:5.6, co2:300, batt:1100, o2:560, sky:1, spe:false, dust:0.4, solar:420},
+  flare:  {label:'SOLAR FLARE (SPE)',water:5.6,co2:640,batt:1100,o2:560, sky:1, spe:true,  dust:0.4,  solar:420},
+};
+let scen = 'nominal';
+
+/* ── Рельеф (детерминированный) ─────────────────────────────────────── */
+const rnd = s => { let x=Math.sin(s*12.9898)*43758.5453; return x-Math.floor(x); };
+function noise(x,y){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=rnd(xi+yi*57), b=rnd(xi+1+yi*57), c=rnd(xi+(yi+1)*57), d=rnd(xi+1+(yi+1)*57);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+const elev = new Float32Array(N*N);
+const slope = new Float32Array(N*N);
+const ix = (x,y) => y*N+x;
+(function build(){
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const dx=(x-N*0.5)/N, dy=(y-N*0.52)/N, r=Math.hypot(dx,dy);
+    const rim  = 165*Math.exp(-Math.pow((r-0.33)/0.07,2));
+    const bowl = -120*Math.exp(-r*r/0.035);
+    const ridge= 22*Math.sin(x*0.16+Math.sin(y*0.08))*Math.cos(y*0.11);
+    const und  = 14*noise(x*0.09,y*0.09)+7*noise(x*0.22,y*0.22);
+    elev[ix(x,y)] = 2400+rim+bowl+ridge+und;
+  }
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const gx=(elev[ix(Math.min(N-1,x+1),y)]-elev[ix(Math.max(0,x-1),y)])/(2*CELL_M);
+    const gy=(elev[ix(x,Math.min(N-1,y+1))]-elev[ix(x,Math.max(0,y-1))])/(2*CELL_M);
+    slope[ix(x,y)] = Math.atan(Math.hypot(gx,gy))*180/Math.PI;
+  }
+})();
+const slopeAt = (x,y) => slope[ix(Math.max(0,Math.min(N-1,Math.round(x))),
+                                  Math.max(0,Math.min(N-1,Math.round(y))))] || 0;
+const elevAt  = (x,y) => elev[ix(Math.max(0,Math.min(N-1,Math.round(x))),
+                                  Math.max(0,Math.min(N-1,Math.round(y))))] || 2400;
+
+/* ── Маршрут выхода: от хабитата к научной цели ─────────────────────── */
+const HAB = {x:N*0.30, y:N*0.62};
+const ROUTE = (() => {
+  const pts=[], tgt={x:N*0.70, y:N*0.33};
+  for(let i=0;i<=60;i++){
+    const t=i/60;
+    const bend=Math.sin(t*Math.PI)*7;
+    pts.push({x:HAB.x+(tgt.x-HAB.x)*t+bend, y:HAB.y+(tgt.y-HAB.y)*t-bend*0.45});
+  }
+  return pts;
+})();
+const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
+// накопленная длина маршрута в метрах; позиция задаётся ПУТЁМ, а не долей времени
+const ROUTE_CUM = [0];
+for(let i=1;i<ROUTE.length;i++) ROUTE_CUM.push(ROUTE_CUM[i-1]+cellDist(ROUTE[i-1],ROUTE[i]));
+const ROUTE_LEN = ROUTE_CUM[ROUTE_CUM.length-1];
+function routeAtDist(s){            // s: метры от хабитата вдоль маршрута
+  s=Math.max(0,Math.min(ROUTE_LEN,s));
+  let i=1; while(i<ROUTE.length-1 && ROUTE_CUM[i]<s) i++;
+  const a=ROUTE[i-1], b=ROUTE[i];
+  const k=(s-ROUTE_CUM[i-1])/((ROUTE_CUM[i]-ROUTE_CUM[i-1])||1);
+  return {x:a.x+(b.x-a.x)*k, y:a.y+(b.y-a.y)*k};
+}
+function elevBil(x,y){               // билинейная высота: уклон без ступенек по ячейкам
+  x=Math.max(0,Math.min(N-1.001,x)); y=Math.max(0,Math.min(N-1.001,y));
+  const x0=Math.floor(x), y0=Math.floor(y), fx=x-x0, fy=y-y0;
+  return elev[ix(x0,y0)]*(1-fx)*(1-fy)+elev[ix(x0+1,y0)]*fx*(1-fy)
+        +elev[ix(x0,y0+1)]*(1-fx)*fy+elev[ix(x0+1,y0+1)]*fx*fy;
+}
+// SPE (ТЗ п.9): орбитальные детекторы регистрируют вспышку в SPE_REG; протонный
+// поток приходит через SPE_LEAD мин (диапазон 30–90, проектное значение 45) и
+// держится до SPE_END. Интеграл дозы и график используют ОДНУ функцию.
+const SPE_REG = 120, SPE_LEAD = 45, SPE_END = 260;
+const SPE_ARRIVE = SPE_REG + SPE_LEAD;
+const speFluxOn = t => SCEN[scen].spe && t >= SPE_ARRIVE && t < SPE_END;
+const DWELL_MIN = 30;               // стоянка на научной цели, мин
+
+/* ── Состояние на момент времени t (минуты) ─────────────────────────── */
+const paceMs = () => (+$('#sPace').value/10)/3.6;
+const loadKg = () => +$('#sMass').value;
+const reservePct = () => +$('#sRes').value;
+const CAUTION_BAND = 10;   // п.п. начальной ёмкости над резервом, где вердикт — CAUTION
+
+const KEYS=['water','co2','batt','o2'];
+const RATE_KEY={water:'water_kg_h',co2:'co2_g_h',batt:'batt_wh_h',o2:'o2_g_h'};
+const capsOf = S => ({water:S.water,co2:S.co2,batt:S.batt,o2:S.o2});
+
+function tempAt(tMin){            // суточный ход, выход стартует утром
+  const solHour = 8 + tMin/60;
+  return -78 + 62*Math.max(0,Math.sin((solHour-6)/12*Math.PI));
+}
+// Температура для time-independent поля стоимости возврата: полдень выхода.
+const REF_TEMP_MIN = 180;
+
+/* ── Safe Havens (ТЗ п.19) ──────────────────────────────────────────────
+   Три укрытия на маршруте. В каждом заложен кэш: CACHE_FRAC от начальной
+   ёмкости каждого канала (вода, CO₂-картридж, батарея, O₂). Пополнение — на
+   обратном пути за HAVEN_STOP_MIN минут стоянки; на пути туда кэш не
+   трогается (аварийный запас). sky — доля неба: защита от радиации.      */
+const CACHE_FRAC = 0.5, HAVEN_STOP_MIN = 10;
+const HAVEN_DEFS = [
+  {id:'H1', name:'SHADED CREVICE',        f:0.30, sky:0.55},
+  {id:'H2', name:'SUBSURFACE CAVITY',     f:0.55, sky:0.35},
+  {id:'H3', name:'DENSE-SOIL PAD',        f:0.80, sky:0.75},
+];
+const HAVENS = HAVEN_DEFS.map(d=>({...d, s:d.f*ROUTE_LEN, pos:routeAtDist(d.f*ROUTE_LEN)}));
+let havensOn = false;   // по умолчанию выкл.: с цепочкой укрытий вдоль маршрута зона не сжимается и PNR не наступает
+
+/* ── План выхода по ЧАСАМ: темп × время ─────────────────────────────────
+   Туда → стоянка на цели → обратно (со стоянками в укрытиях) → дома.     */
+let SCHKEY=null, SCH=null;
+function schedule(){
+  const key=paceMs()+'|'+havensOn;
+  if(key===SCHKEY) return SCH;
+  const v=paceMs()*60, segs=[];
+  let t=0;
+  const tOut=ROUTE_LEN/v;
+  segs.push({t0:0,t1:tOut,s0:0,s1:ROUTE_LEN,phase:'out',leg:'out'}); t=tOut;
+  segs.push({t0:t,t1:t+DWELL_MIN,s0:ROUTE_LEN,s1:ROUTE_LEN,phase:'dwell',leg:'out'}); t+=DWELL_MIN;
+  let s=ROUTE_LEN;
+  if(havensOn) for(const h of [...HAVENS].sort((a,b)=>b.s-a.s)){
+    const dt=(s-h.s)/v;
+    segs.push({t0:t,t1:t+dt,s0:s,s1:h.s,phase:'back',leg:'back'}); t+=dt;
+    segs.push({t0:t,t1:t+HAVEN_STOP_MIN,s0:h.s,s1:h.s,phase:'stop',leg:'back',hv:h}); t+=HAVEN_STOP_MIN;
+    s=h.s;
+  }
+  segs.push({t0:t,t1:t+s/v,s0:s,s1:0,phase:'back',leg:'back'});
+  SCHKEY=key; SCH=segs; return segs;
+}
+function planAt(tMin){
+  const segs=schedule();
+  for(const g of segs){
+    if(tMin<=g.t1){
+      const k=g.t1>g.t0?(tMin-g.t0)/(g.t1-g.t0):0;
+      return {s:g.s0+(g.s1-g.s0)*k, phase:g.phase, leg:g.leg, hv:g.hv||null,
+              dir:Math.sign(g.s1-g.s0)};
+    }
+  }
+  return {s:0, phase:'home', leg:'back', hv:null, dir:0};
+}
+function routeGrade(s,dir){                  // знаковый уклон в направлении движения
+  const w=CELL_M, a=routeAtDist(s-w), b=routeAtDist(s+w);
+  const dz=elevBil(b.x,b.y)-elevBil(a.x,a.y);
+  return dir*dz/(Math.max(1,Math.min(ROUTE_LEN,s+w)-Math.max(0,s-w)))*100;
+}
+
+/* ── Хронология выхода: расход по минутам часов ─────────────────────────
+   Зависит от темпа, груза и сценария, но НЕ от положения слайдера
+   времени — кэшируется и пересчитывается только при смене параметров. */
+let TLKEY=null, TL=null;
+function timeline(){
+  const key=[scen,paceMs(),loadKg(),havensOn].join('|');
+  if(key===TLKEY) return TL;
+  const S=SCEN[scen];
+  const rows=[], u={water:0,co2:0,batt:0,o2:0};
+  const cacheLeft={}; for(const h of HAVENS){ cacheLeft[h.id]={}; for(const k of KEYS) cacheLeft[h.id][k]=CACHE_FRAC*S[k]; }
+  let dose=0;
+  for(let m=0;m<=EVA_MAX;m++){
+    const p=planAt(m);
+    const pos=routeAtDist(p.s);
+    let met=0;
+    if(m>0){
+      const pm=planAt(m-0.5);                 // активность на предыдущей минуте
+      if(pm.phase!=='home'){
+        met=metabolicW({speedMs:pm.dir?paceMs():0,
+                        gradePct:pm.dir?routeGrade(pm.s,pm.dir):0,loadKg:loadKg()});
+        const r=consumptionRates(met,{extTempC:tempAt(m-0.5),solarWm2:S.solar});
+        u.water+=r.water_kg_h/60; u.co2+=r.co2_g_h/60;
+        u.batt+=r.batt_wh_h/60;   u.o2+=r.o2_g_h/60;
+        dose+=doseRateMSvH(pm.phase==='stop'?pm.hv.sky:S.sky,speFluxOn(m-0.5))/60;
+        if(pm.phase==='stop'){                    // пополнение из кэша укрытия
+          for(const k of KEYS){
+            const amt=Math.min(u[k],cacheLeft[pm.hv.id][k],S[k]*CACHE_FRAC/HAVEN_STOP_MIN);
+            u[k]-=amt; cacheLeft[pm.hv.id][k]-=amt;
+          }
+        }
+      }
+    }
+    rows.push({pos, s:p.s, phase:p.phase, used:{...u}, dose, met});
+  }
+  TLKEY=key; TL=rows; return rows;
+}
+
+/* ── Единое поле стоимости возврата: Дейкстра ОТ ХАБИТАТА ───────────────
+   Рёбра обращены: cost_to_base[u] — цена пути ИЗ ячейки u НА базу. Ребро
+   u→v идёт из u в v, поэтому уклон = (h[v]−h[u])/d, где v — уже
+   закреплённая ячейка (cur), а u — сосед. Подъём на базу дороже спуска.
+   Стоимость по каналам аккумулируется вдоль найденного пути; минимизируется
+   сумма стоимостей, нормированных на ёмкость каналов.                   */
+const CFCACHE=new Map();
+function costField(hv=havensOn){
+  const key=[scen,paceMs(),loadKg(),hv].join('|');
+  if(CFCACHE.has(key)) return CFCACHE.get(key);
+  if(CFCACHE.size>40) CFCACHE.clear();
+  const S=SCEN[scen], caps=capsOf(S), pace=paceMs();
+  const T=tempAt(REF_TEMP_MIN);
+  // Float64: в Float32 округлённое scal[cur] могло оказаться меньше c, и запись
+  // кучи ошибочно считалась устаревшей — ячейка не расширялась, её потомки
+  // оставались недостижимыми (стоимость возврата = Infinity).
+  const scal=new Float64Array(N*N).fill(Infinity);
+  const ch={}; for(const k of KEYS) ch[k]=new Float32Array(N*N);
+  const hrs=new Float32Array(N*N), mtr=new Float32Array(N*N);
+  const heap=[];                                    // бинарная куча [cost, idx]
+  const push=(c,i)=>{ let n=heap.push([c,i])-1;
+    while(n>0){ const p=(n-1)>>1; if(heap[p][0]<=heap[n][0]) break;
+      [heap[p],heap[n]]=[heap[n],heap[p]]; n=p; } };
+  const pop=()=>{ const top=heap[0], last=heap.pop();
+    if(heap.length){ heap[0]=last; let n=0;
+      for(;;){ let l=2*n+1, r=l+1, m=n;
+        if(l<heap.length&&heap[l][0]<heap[m][0]) m=l;
+        if(r<heap.length&&heap[r][0]<heap[m][0]) m=r;
+        if(m===n) break; [heap[m],heap[n]]=[heap[n],heap[m]]; n=m; } }
+    return top; };
+  // мульти-сорс: хабитат и (если включены) все укрытия стартуют с нуля
+  const sources=[HAB,...(hv?HAVENS.map(h=>h.pos):[])];
+  for(const q of sources){ const i0=ix(Math.round(q.x),Math.round(q.y)); scal[i0]=0; push(0,i0); }
+  while(heap.length){
+    const [c,cur]=pop();
+    if(c>scal[cur]) continue;                       // устаревшая запись
+    const cx=cur%N, cy=(cur/N)|0;
+    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
+      if(!ox&&!oy) continue;
+      const nx=cx+ox, ny=cy+oy;
+      if(nx<0||ny<0||nx>=N||ny>=N) continue;
+      const ni=ix(nx,ny);
+      const d=Math.hypot(ox,oy)*CELL_M;
+      const grade=(elev[cur]-elev[ni])/d*100;       // идём ni → cur
+      if(Math.abs(grade)>45) continue;              // непроходимо для пешего
+      const met=metabolicW({speedMs:pace,gradePct:grade,loadKg:loadKg()});
+      const r=consumptionRates(met,{extTempC:T,solarWm2:S.solar});
+      const h=d/(pace*3600);
+      let e=0; const add={};
+      for(const k of KEYS){ add[k]=r[RATE_KEY[k]]*h; e+=add[k]/caps[k]; }
+      const nc=c+e;
+      if(nc<scal[ni]){
+        scal[ni]=nc;
+        for(const k of KEYS) ch[k][ni]=ch[k][cur]+add[k];
+        hrs[ni]=hrs[cur]+h; mtr[ni]=mtr[cur]+d;
+        push(nc,ni);
+      }
+    }
+  }
+  const CF={scal,ch,hrs,mtr}; CFCACHE.set(key,CF); return CF;
+}
+// стоимость возврата из точки (x,y): билинейно по четырём ячейкам
+function needAt(p){
+  const cf=costField();
+  const x=Math.max(0,Math.min(N-1.001,p.x)), y=Math.max(0,Math.min(N-1.001,p.y));
+  const x0=Math.floor(x), y0=Math.floor(y), fx=x-x0, fy=y-y0;
+  const cells=[[x0,y0,(1-fx)*(1-fy)],[x0+1,y0,fx*(1-fy)],[x0,y0+1,(1-fx)*fy],[x0+1,y0+1,fx*fy]];
+  const out={water:0,co2:0,batt:0,o2:0,h:0,d:0};
+  if(cells.some(([cx,cy])=>!isFinite(cf.scal[ix(cx,cy)]))){
+    const i=ix(Math.round(x),Math.round(y));
+    if(!isFinite(cf.scal[i])){ for(const k of KEYS) out[k]=Infinity; out.h=out.d=Infinity; return out; }
+    cells.length=0; cells.push([Math.round(x),Math.round(y),1]);
+  }
+  for(const [cx,cy,w] of cells){
+    const i=ix(cx,cy);
+    for(const k of KEYS) out[k]+=cf.ch[k][i]*w;
+    out.h+=cf.hrs[i]*w; out.d+=cf.mtr[i]*w;
+  }
+  return out;
+}
+// Запас канала = (остаток − цена возврата) в % от НАЧАЛЬНОЙ ёмкости канала.
+// Резерв — неснижаемая абсолютная величина: reservePct % начальной ёмкости
+// каждого канала. Единственное определение для вердикта, PNR и зоны возврата:
+// канал в порядке, пока запас >= reservePct. Пробой резерва = ABORT.
+function marginPct(rem,need,cap){
+  return (rem-need)/cap*100;
+}
+function evalMargin(remaining,need,caps){
+  let worst={pct:Infinity,key:null,label:null};
+  const per={};
+  for(const ch of CHANNELS){
+    const rem=remaining[ch.key], nd=need[ch.key], cap=caps[ch.key];
+    const pct=marginPct(rem,nd,cap);
+    per[ch.key]={rem, need:nd, pct, cap, frac:Math.max(0,rem/cap)};
+    if(pct<worst.pct) worst={pct,key:ch.key,label:ch.label};
+  }
+  return {per,worst};
+}
+
+/* ── Состояние на момент времени t (минуты часов) ───────────────────── */
+function stateAt(tMin){
+  const S=SCEN[scen], caps=capsOf(S), rows=timeline();
+  const t=Math.max(0,Math.min(EVA_MAX,tMin));
+  const i0=Math.floor(t), i1=Math.min(EVA_MAX,i0+1), k=t-i0;
+  const r0=rows[i0], r1=rows[i1];
+  const used={}; for(const key of KEYS) used[key]=r0.used[key]+(r1.used[key]-r0.used[key])*k;
+  const dose=r0.dose+(r1.dose-r0.dose)*k;
+  const p=planAt(t), pos=routeAtDist(p.s);
+  const remaining={}; for(const key of KEYS) remaining[key]=caps[key]-used[key];
+  const nb=needAt(pos);                           // из того же поля, что и зона
+  const {per,worst}=evalMargin(remaining,nb,caps);
+  return {pos, dBack:nb.d, hBack:nb.h, used, remaining, per, dose,
+          marginPct:worst.pct, limiting:worst, met:r1.met.toFixed(0),
+          progress:p.leg==='out'?p.s/ROUTE_LEN:1, phase:p.phase};
+}
+
+/* ── Точка невозврата ───────────────────────────────────────────────────
+   PNR — первый момент на пути ТУДА, когда астронавт выходит за границу
+   зоны возврата (запас по худшему каналу пробивает неснижаемый резерв).
+   null — граница не достигается за выход.                               */
+function findPNR(){
+  const res=reservePct();
+  for(let m=0;m<=EVA_MAX;m++){
+    const p=planAt(m);
+    if(p.leg==='back'||p.phase==='home') break;
+    if(stateAt(m).marginPct<res) return m;
+  }
+  return null;
+}
+
+/* ── Подложка рельефа ───────────────────────────────────────────────────
+   Тайл MOLA на z7 покрывает ~167 км при разрешении 463 м/пиксель, а наш
+   участок — 10 км. Растягивать его бессмысленно: это будет один размытый
+   пиксель. Поэтому локальный рельеф рисуем из собственного поля высот
+   (отмывка + гипсометрия), а реальную подложку MOLA показываем как
+   обзорную врезку с отметкой участка. Так честнее и информативнее. */
+let map=null, envLayer=null, routeLayer=null, posMarker=null, pnrMarker=null, habMarker=null;
+let reliefCanvas=null;
+
+function drawRelief(){
+  const c=document.getElementById('relief');
+  if(!c) return;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  const w=c.clientWidth, h=c.clientHeight;
+  if(!w||!h) return;
+  c.width=w*dpr; c.height=h*dpr;
+  const g=c.getContext('2d'); g.scale(dpr,dpr);
+  const img=g.createImageData(N,N);
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<N*N;i++){ if(elev[i]<mn)mn=elev[i]; if(elev[i]>mx)mx=elev[i]; }
+  // освещение с северо-запада, как принято в планетной картографии
+  const lx=-0.6, ly=-0.6, lz=0.52;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const gx=(elevAt(x+1,y)-elevAt(x-1,y))/(2*CELL_M);
+    const gy=(elevAt(x,y+1)-elevAt(x,y-1))/(2*CELL_M);
+    const nl=Math.hypot(gx,gy,1);
+    let sh=(-gx*lx-gy*ly+lz)/nl; sh=Math.max(0.15,Math.min(1,sh*1.25));
+    const t=(elev[ix(x,y)]-mn)/((mx-mn)||1);
+    // гипсометрия: низины тёмно-бордовые, вершины песочные
+    const r=(78+150*t)*sh, gg=(46+104*t)*sh, b=(40+70*t)*sh;
+    const o=(y*N+x)*4;
+    img.data[o]=r; img.data[o+1]=gg; img.data[o+2]=b; img.data[o+3]=255;
+  }
+  const tmp=document.createElement('canvas'); tmp.width=N; tmp.height=N;
+  tmp.getContext('2d').putImageData(img,0,0);
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  g.clearRect(0,0,w,h);
+  g.drawImage(tmp,0,0,w,h);
+  // изогипсы через каждые 20 м
+  g.strokeStyle='rgba(0,0,0,.22)'; g.lineWidth=0.7;
+  for(let lvl=Math.ceil(mn/20)*20; lvl<mx; lvl+=20){
+    g.beginPath();
+    for(let y=0;y<N-1;y++) for(let x=0;x<N-1;x++){
+      const a=elev[ix(x,y)], b2=elev[ix(x+1,y)];
+      if((a-lvl)*(b2-lvl)<0){ g.moveTo(x/N*w,y/N*h); g.lineTo((x+1)/N*w,y/N*h); }
+    }
+    g.stroke();
+  }
+}
+
+function cellToPx(p, el){
+  const r=el.getBoundingClientRect();
+  return {x:p.x/N*r.width, y:p.y/N*r.height};
+}
+function initMap(){
+  // Обзорная врезка: реальный тайл MOLA вокруг участка
+  const img=document.getElementById('molaTile');
+  const z=6;
+  const n=Math.pow(2,z);
+  const tx=Math.floor((SITE.lon+180)/360*n*2);
+  const ty=Math.floor((90-SITE.lat)/180*n);
+  img.referrerPolicy='no-referrer';
+  img.onerror=()=>{ img.style.display='none';
+    $('#mapnote').textContent='MOLA CONTEXT UNAVAILABLE · LOCAL RELIEF SYNTHETIC'; };
+  img.src=`https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm/${z}/${ty}/${tx}.jpg`;
+  drawRelief();
+}
+
+/* Ячейки, из которых запас по худшему каналу не ниже резерва. */
+function zoneMask(cf,remaining){
+  const caps=capsOf(SCEN[scen]), res=reservePct();
+  const inZ=new Uint8Array(N*N), need={};
+  for(let i=0;i<N*N;i++){
+    if(!isFinite(cf.scal[i])) continue;
+    for(const k of KEYS) need[k]=cf.ch[k][i];
+    if(evalMargin(remaining,need,caps).worst.pct>=res) inZ[i]=1;
+  }
+  return inZ;
+}
+const zoneKm2 = m => m.reduce((a,b)=>a+b,0)*CELL_M*CELL_M/1e6;
+
+/* ── Отрисовка зоны возврата, маршрута и маркеров на canvas ─────────── */
+function drawOverlay(st, pnrT){
+  const c=$('#overlay');
+  const dpr=Math.min(2,devicePixelRatio||1);
+  const w=c.clientWidth, h=c.clientHeight;
+  if(!w||!h) return;
+  c.width=w*dpr; c.height=h*dpr;
+  const g=c.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  const PX = p => ({x:p.x/N*w, y:p.y/N*h});
+
+  // зона возврата: ячейки, из которых запас по худшему каналу не ниже резерва.
+  // Привязана к хабитату, берёт стоимость из того же поля, что и вердикт.
+  const cf=costField(), res=reservePct();
+  const inZ=zoneMask(cf,st.remaining);
+  const cw=w/N, chh=h/N;
+  g.fillStyle='rgba(46,230,168,.10)';
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(inZ[ix(x,y)]) g.fillRect(x*cw,y*chh,cw+0.5,chh+0.5);
+  g.strokeStyle='rgba(60,255,185,1)'; g.lineWidth=2.6; g.beginPath();
+  const out=(x,y)=>x<0||y<0||x>=N||y>=N||!inZ[ix(x,y)];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(!inZ[ix(x,y)]) continue;
+    if(out(x,y-1)){ g.moveTo(x*cw,y*chh);       g.lineTo((x+1)*cw,y*chh); }
+    if(out(x,y+1)){ g.moveTo(x*cw,(y+1)*chh);   g.lineTo((x+1)*cw,(y+1)*chh); }
+    if(out(x-1,y)){ g.moveTo(x*cw,y*chh);       g.lineTo(x*cw,(y+1)*chh); }
+    if(out(x+1,y)){ g.moveTo((x+1)*cw,y*chh);   g.lineTo((x+1)*cw,(y+1)*chh); }
+  }
+  g.stroke();
+
+  // SPE: ячейки, до укрытия из которых успеваешь до прихода потока
+  if(SCEN[scen].spe){
+    const t0=+$('#sTime').value;
+    if(t0>=SPE_REG && t0<SPE_ARRIVE){
+      const left=SPE_ARRIVE-t0;
+      g.fillStyle='rgba(255,194,71,.30)';
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+        const i=ix(x,y); if(isFinite(cf.scal[i]) && cf.hrs[i]*60<=left) g.fillRect(x*cw,y*chh,cw+0.5,chh+0.5);
+      }
+    }
+  }
+  // маршрут
+  g.beginPath();
+  ROUTE.forEach((p,i)=>{ const q=PX(p); i?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y); });
+  g.strokeStyle='rgba(255,122,69,.55)'; g.lineWidth=2.5; g.stroke();
+  // пройденная часть — ярче
+  g.beginPath();
+  const done=Math.max(1,Math.round(st.progress*(ROUTE.length-1)));
+  for(let i=0;i<=done;i++){ const q=PX(ROUTE[i]); i?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y); }
+  g.strokeStyle='#ff7a45'; g.lineWidth=2.5; g.stroke();
+
+  const dot=(p,fill,stroke,r,label)=>{
+    const q=PX(p);
+    g.beginPath(); g.arc(q.x,q.y,r,0,7); g.fillStyle=fill; g.fill();
+    g.lineWidth=2; g.strokeStyle=stroke; g.stroke();
+    if(label){ g.font='9px ui-monospace,monospace'; g.fillStyle='rgba(232,236,242,.85)';
+      g.fillText(label,q.x+r+5,q.y+3); }
+  };
+  if(havensOn) HAVENS.forEach((h,i)=>{
+    const q=PX(h.pos), r=6;
+    g.beginPath(); g.rect(q.x-r,q.y-r,2*r,2*r); g.fillStyle='#8f7bff'; g.fill();
+    g.lineWidth=2; g.strokeStyle='#0a0c10'; g.stroke();
+    g.font='9px ui-monospace,monospace'; g.fillStyle='rgba(232,236,242,.85)';
+    g.fillText('HAVEN '+(i+1)+' · '+h.name,q.x+r+5,q.y+3);
+  });
+  dot(HAB,'#4da3ff','#0a0c10',7,'HABITAT');
+  dot(ROUTE[ROUTE.length-1],'transparent','rgba(232,236,242,.5)',5,'SCIENCE TARGET');
+  if(pnrT!==null) dot(routeAtDist(planAt(pnrT).s),'transparent','#ff4d5e',7,'PNR');
+  dot(st.pos,'#ff7a45','#fff',6,null);
+}
+
+/* ── Графики среды ──────────────────────────────────────────────────── */
+function strip(id, fn, color){
+  const c=$(id), dpr=devicePixelRatio||1;
+  const w=c.clientWidth, h=c.clientHeight;
+  c.width=w*dpr; c.height=h*dpr;
+  const g=c.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  const vals=[]; for(let i=0;i<=60;i++) vals.push(fn(i/60*EVA_MAX));
+  const mn=Math.min(...vals), mx=Math.max(...vals), rg=(mx-mn)||1;
+  g.beginPath();
+  vals.forEach((v,i)=>{ const x=i/60*w, y=h-((v-mn)/rg)*(h-6)-3;
+    i?g.lineTo(x,y):g.moveTo(x,y); });
+  g.strokeStyle=color; g.lineWidth=1.5; g.stroke();
+  g.lineTo(w,h); g.lineTo(0,h); g.closePath();
+  g.fillStyle=color+'22'; g.fill();
+  const t=+$('#sTime').value/EVA_MAX;
+  g.beginPath(); g.moveTo(t*w,0); g.lineTo(t*w,h);
+  g.strokeStyle='#ff7a45'; g.lineWidth=1; g.stroke();
+}
+const dustAt = t => SCEN[scen].dust*(0.85+0.3*Math.sin(t/EVA_MAX*Math.PI*1.4));
+const doseAt = t => doseRateMSvH(SCEN[scen].sky, speFluxOn(t));
+
+/* ── Отрисовка ──────────────────────────────────────────────────────── */
+function render(){
+  const t=+$('#sTime').value;
+  const st=stateAt(t);
+  const pnr=findPNR();
+  const res=reservePct();
+
+  $('#tlv').textContent=fmt(t);
+  $('#oMass').textContent=loadKg()+' kg';
+  $('#oPace').textContent=(+$('#sPace').value/10).toFixed(1)+' km/h';
+  $('#oRes').textContent=res+' %';
+
+  // каналы
+  $('#channels').innerHTML=CHANNELS.map(ch=>{
+    const d=st.per[ch.key];
+    const isLim=st.limiting.key===ch.key;
+    const warn=d.pct<res+CAUTION_BAND && !isLim;
+    const unit={water:'kg',co2:'g',batt:'Wh',o2:'g'}[ch.key];
+    return `<div class="ch ${isLim?'limit':warn?'warn':''}">
+      <div class="chrow"><span class="chname">${ch.label}${isLim?'<span class="lim">LIMITING</span>':''}</span>
+      <span class="chval"><b>${d.rem.toFixed(d.rem<10?2:0)}</b><i> / ${d.cap} ${unit}</i></span></div>
+      <div class="bar"><span style="width:${Math.max(0,Math.min(100,d.frac*100))}%"></span></div>
+    </div>`;
+  }).join('');
+
+  $('#kRange').innerHTML=(Math.hypot(st.pos.x-HAB.x,st.pos.y-HAB.y)*CELL_M/1000).toFixed(2)+'<em> km</em>';
+  $('#kBack').innerHTML=fmt(st.hBack*60)+'<em> h</em>';
+  $('#kMet').innerHTML=st.met+'<em> W</em>';
+  $('#kDose').innerHTML=st.dose.toFixed(3)+'<em> mSv</em>';
+  $('#kDose').style.color = st.dose>=3.0 ? 'var(--abort)' : st.dose>=1.0 ? 'var(--caution)' : '';
+
+  // вердикт
+  const m=st.marginPct;
+  // Доза — независимый канал прерывания выхода. Порог 3 мЗв за один выход
+  // соответствует требованию ALARA при лимите NASA 50 мЗв/год на орган
+  // кроветворения: один выход не должен съедать более ~6 % годового бюджета.
+  const DOSE_ABORT=3.0, DOSE_CAUTION=1.0;
+  // ТЗ п.18: ABORT наступает при ПРОБОЕ неснижаемого резерва, а не когда
+  // возврат уже невозможен. CAUTION — предупреждение за CAUTION_BAND п.п.
+  // ёмкости до резерва.
+  const doseAbort = st.dose>=DOSE_ABORT, doseCaution = st.dose>=DOSE_CAUTION;
+  const resourceAbort = m<res;
+  const resourceCaution = !resourceAbort && m<res+CAUTION_BAND;
+  const go = !resourceAbort && !resourceCaution && !doseCaution;
+  const abort = resourceAbort || doseAbort;
+  const caution = !go && !abort;
+  // чем именно ограничены: ресурсом или дозой
+  const doseLimits = doseAbort || (doseCaution && !resourceCaution && !resourceAbort);
+  const limName = doseLimits ? 'cumulative dose' : st.limiting.label;
+  // SPE: таймер до прихода потока против времени до ближайшего укрытия
+  const S=SCEN[scen];
+  let spe=null;
+  if(S.spe && t>=SPE_REG && t<SPE_END){
+    const left=Math.max(0,SPE_ARRIVE-t), reach=st.hBack*60;
+    spe={left, reach, unreachable: st.dBack>5 && reach>left};
+  }
+  const speWarn = spe && spe.left>0 && !spe.unreachable;
+  const v=$('#verdict');
+  v.className='verdict '+((spe&&spe.unreachable)?'abort':go&&!speWarn?'':(caution||(speWarn&&!abort))?'caution':'abort');
+  const tagTxt=(spe&&spe.unreachable)?'SHELTER UNREACHABLE':go&&!speWarn?'GO':(caution||(speWarn&&!abort))?'CAUTION':'ABORT';
+  $('#vtag').textContent=tagTxt;
+  $('#vtag').classList.toggle('long',tagTxt.length>9);
+  $('#vtext').textContent = (spe&&spe.unreachable)
+    ? `Proton flux ${spe.left>0?'arrives in '+fmt(spe.left):'has arrived'}; nearest shelter is ${fmt(spe.reach)} away (${(st.dBack/1000).toFixed(2)} km). Shelter cannot be reached in time.`
+    : speWarn && !abort
+    ? `SPE registered. Proton flux in ${fmt(spe.left)}; shelter reachable in ${fmt(spe.reach)}. Begin return now.`
+    : go
+    ? `Return margin above reserve. Limiting consumable: ${limName}, margin ${Math.round(m)} %.`
+    : doseAbort
+    ? `Cumulative dose ${st.dose.toFixed(2)} mSv exceeds the ${DOSE_ABORT} mSv per-EVA threshold. Seek shelter immediately.`
+    : caution && doseLimits
+    ? `Cumulative dose ${st.dose.toFixed(2)} mSv. Radiation environment degraded — shorten the EVA.`
+    : caution
+    ? `Margin approaching ${res} % reserve. Limiting consumable: ${limName}, margin ${Math.round(m)} %.`
+    : m>=0
+    ? `Margin below ${res} % reserve. Limiting consumable: ${limName}. Begin return now.`
+    : `Insufficient consumables to reach habitat. Limiting: ${limName}, deficit ${Math.abs(Math.round(m))} %.`;
+  $('#vmeta').textContent = (spe&&spe.unreachable)
+    ? `SPE · FLUX ${spe.left>0?'IN '+fmt(spe.left):'ARRIVED'} · SHELTER ${fmt(spe.reach)} · DOSE ${st.dose.toFixed(2)} mSv`
+    : doseAbort
+    ? `DOSE ${st.dose.toFixed(2)} mSv · THRESHOLD ${DOSE_ABORT} mSv · ABORT EVA`
+    : go
+    ? `MARGIN ${Math.round(m)} % · WALKBACK ${fmt(st.hBack*60)} · DOSE ${st.dose.toFixed(2)} mSv`
+    : m>=0 ? `RESERVE ${res} % · WALKBACK ${fmt(st.hBack*60)} · DOSE ${st.dose.toFixed(2)} mSv`
+    : `RETURN CAPABILITY LOST · ABORT EVA`;
+
+  const sb=$('#spebox');
+  if(S.spe){
+    sb.style.display='block';
+    sb.innerHTML = t<SPE_REG
+      ? `<b>SPE WATCH</b> · orbital detection at ${fmt(SPE_REG)}, proton flux ${SPE_LEAD} min later (design value, range 30–90 min)`
+      : t<SPE_ARRIVE
+      ? `<b>SPE DETECTED</b> · FLUX ARRIVAL IN <b>${fmt(spe.left)}</b> · NEAREST SHELTER ${fmt(spe.reach)} · ${spe.unreachable?'<b>UNREACHABLE</b>':'reachable, slack '+fmt(spe.left-spe.reach)}`
+      : t<SPE_END
+      ? `<b>PROTON FLUX ACTIVE</b> · dose rate ×80 · DESIGN-BASIS WORST CASE`
+      : `<b>FLUX SUBSIDED</b> · cumulative dose ${st.dose.toFixed(2)} mSv`;
+  } else sb.style.display='none';
+  $('#doseLbl').textContent = S.spe ? 'DOSE RATE · DESIGN-BASIS WORST CASE ×80' : 'DOSE RATE';
+
+  {
+    const caps=capsOf(S);
+    const a1=zoneKm2(zoneMask(costField(true),st.remaining)), a0=zoneKm2(zoneMask(costField(false),st.remaining));
+    const gain=a0>0?(a1-a0)/a0*100:0;
+    $('#havnote').innerHTML=`Return envelope: <b style="color:var(--tx)">${a0.toFixed(1)} km² → ${a1.toFixed(1)} km² (${gain>=0?'+':''}${gain.toFixed(0)} %)</b> without → with havens (${havensOn?'havens ON':'havens OFF, shown on map'})<br/>`+
+      `Each haven cache: ${(caps.water*CACHE_FRAC).toFixed(1)} kg water, ${Math.round(caps.co2*CACHE_FRAC)} g CO₂ capacity, `+
+      `${Math.round(caps.batt*CACHE_FRAC)} Wh, ${Math.round(caps.o2*CACHE_FRAC)} g O₂; ${HAVEN_STOP_MIN} min stop on the return leg.<br/>`+
+      `Havens give radiation cover and a resupply stop; they do not end the EVA.`;
+  }
+  const pnrPassed = pnr!==null && t>=pnr;
+  $('#tlPnr').textContent = pnr===null ? 'NOT REACHED' : pnrPassed ? 'PASSED' : `IN ${fmt(pnr-t)}`;
+  $('#tlPnr').style.color = pnrPassed ? 'var(--abort)' : 'var(--tx)';
+
+  // карта
+  drawOverlay(st, pnr);
+
+  // полосы среды
+  $('#vTemp').textContent=tempAt(t).toFixed(0)+' °C';
+  $('#vDose').textContent=doseAt(t).toFixed(3)+' mSv/h';
+  $('#vDust').textContent=dustAt(t).toFixed(2)+' τ';
+  strip('#cTemp',tempAt,'#4da3ff');
+  strip('#cDose',doseAt,'#ff4d5e');
+  strip('#cDust',dustAt,'#ffc247');
+}
+const fmt = m => `${String(Math.floor(Math.max(0,m)/60)).padStart(2,'0')}:${String(Math.round(Math.max(0,m)%60)).padStart(2,'0')}`;
+
+/* ── Инициализация ──────────────────────────────────────────────────── */
+$('#scenarios').innerHTML=Object.entries(SCEN).map(([k,v])=>
+  `<button data-s="${k}" class="${k===scen?'on':''}">${v.label}</button>`).join('');
+$('#scenarios').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  scen=b.dataset.s;
+  document.querySelectorAll('#scenarios button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#liveTag').textContent=SCEN[scen].label;
+  $('#scnote').textContent=SCEN[scen].note||'';
+  render();
+});
+$('#btnHavens').addEventListener('click',()=>{
+  havensOn=!havensOn;
+  $('#btnHavens').textContent=havensOn?'HAVENS ON':'HAVENS OFF';
+  $('#btnHavens').classList.toggle('on',havensOn);
+  render();
+});
+['#sTime','#sMass','#sPace','#sRes'].forEach(s=>$(s).addEventListener('input',render));
+window.addEventListener('resize',()=>{drawRelief();render();strip('#cTemp',tempAt,'#4da3ff');
+  strip('#cDose',doseAt,'#ff4d5e');strip('#cDust',dustAt,'#ffc247');});
+
+initMap();
+render();
+window.__ready=true;
+</script>
+</body>
+</html>

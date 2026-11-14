@@ -123,3 +123,20 @@ dist/walkback.html  the deliverable — open this
 
 The six calibration values in `test-physics.mjs` are a regression barrier:
 they change only deliberately.
+
+## Live demo
+
+**https://ordinatum.github.io/walkback-envelope/**
+
+No login, no install. Pick a scenario, drag the EVA timeline, watch the
+return envelope shrink and the Point of No Return approach.
+
+Suggested 60-second tour:
+1. `NOMINAL`, pace 1.7 km/h — watch the verdict go GO → CAUTION as the
+   envelope contracts around the habitat.
+2. Toggle `HAVENS ON` — the reachable return area grows by about half,
+   because each haven is an additional zero-cost source in the same search.
+3. Switch to `SCRUBBER FAILURE` — the limiting consumable changes from
+   cooling water to the CO₂ scrubber, and the tool says so by name.
+4. Switch to `SOLAR FLARE (SPE)` — dose aborts the EVA while every tank is
+   still comfortably full.
