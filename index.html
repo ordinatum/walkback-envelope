@@ -390,7 +390,11 @@ let havensOn = false;   // по умолчанию выкл.: с цепочко�
    Туда → стоянка на цели → обратно (со стоянками в укрытиях) → дома.     */
 let SCHKEY=null, SCH=null;
 function schedule(){
-  const key=paceMs()+'|'+havensOn;
+  // Ключ обязан включать ГЕОМЕТРИЮ: длину маршрута и места укрытий.
+  // Без этого клик по карте менял нарисованный маршрут, а расписание
+  // (моменты, позиция, расход) оставалось от прежней цели.
+  const key=paceMs()+'|'+havensOn+'|'+ROUTE_LEN.toFixed(3)+'|'+
+            HAVENS.map(h=>h.s==null?'-':h.s.toFixed(2)).join(',');
   if(key===SCHKEY) return SCH;
   const v=paceMs()*60, segs=[];
   let t=0;
@@ -955,6 +959,7 @@ window.addEventListener('resize',()=>{drawRelief();render();strip('#cTemp',tempA
 function resetCaches(){
   if(typeof CFCACHE!=='undefined' && CFCACHE.clear) CFCACHE.clear();
   TLKEY=null; TL=null;
+  SCHKEY=null; SCH=null;        // расписание тоже зависит от маршрута
 }
 function applySite(i){
   loadSite(i);
