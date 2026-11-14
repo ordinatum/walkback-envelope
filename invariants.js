@@ -24,6 +24,25 @@
   function checkRun(p){
     M.setParams(p);
 
+    /* ИНВ-0. Заданные параметры должны реально примениться.
+       Без этой проверки весь прогон может идти на одном наборе значений,
+       притворяясь перебором: слайдер темпа хранит децикилометры, подача
+       км/ч молча зажималась в минимум, и 288 конфигураций вырождались
+       в одну. Проверка пространства, которая не проверяет само
+       пространство, бесполезна. */
+    {
+      const s0 = M.probe(0);
+      if (Math.abs(s0.actualPace - p.pace) > 0.051)
+        fail('INV-0 params actually applied', ctxStr(p),
+             `pace asked ${p.pace}, got ${s0.actualPace}`);
+      if (Math.abs(s0.actualMass - p.mass) > 0.5)
+        fail('INV-0 params actually applied', ctxStr(p),
+             `mass asked ${p.mass}, got ${s0.actualMass}`);
+      if (Math.abs(s0.actualRes - p.res) > 0.5)
+        fail('INV-0 params actually applied', ctxStr(p),
+             `reserve asked ${p.res}, got ${s0.actualRes}`);
+    }
+
     /* ИНВ-1. Стоимость возврата ИЗ хабитата равна нулю.
        Нарушение означает, что поле стоимости и позиция базы рассогласованы. */
     const nh = M.needAtHab();
@@ -131,7 +150,7 @@
     const out=[];
     for (const site of SITES)
       for (const scen of SCENS)
-        for (const pace of [1.1, 1.7, 2.4])
+        for (const pace of [0.9, 1.7, 2.8])
           for (const mass of [0, 30])
             for (const res of [10, 25, 40])
               out.push({site, scen, havens:false, pace, mass, res});

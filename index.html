@@ -721,14 +721,14 @@ function findPNR(){
     dose+=doseRateMSvH(S.sky,speFluxOn(m))/60;
 
     const need=needAt(pos);
-    if(!isFinite(need.h)) return m;           // возврата из этой точки нет вовсе
+    if(!isFinite(need.h)) return {m, s};      // возврата из этой точки нет вовсе
     const rem={}; for(const k of KEYS) rem[k]=caps[k]-u[k];
     const {worst}=evalMargin(rem,need,caps);
-    if(worst.pct<res) return m;               // 1. ресурсный предел
-    if(dose + doseRateMSvH(S.sky,speFluxOn(m))*need.h >= DOSE_ABORT_MSV) return m;  // 2. доза
+    if(worst.pct<res) return {m, s};          // 1. ресурсный предел
+    if(dose + doseRateMSvH(S.sky,speFluxOn(m))*need.h >= DOSE_ABORT_MSV) return {m, s};  // 2. доза
     if(S.spe && m>=SPE_REG && m<SPE_END){     // 3. укрытие недостижимо
       const left=Math.max(0,SPE_ARRIVE-m);
-      if(need.d>5 && need.h*60>left) return m;
+      if(need.d>5 && need.h*60>left) return {m, s};
     }
   }
   return null;
@@ -985,7 +985,7 @@ function zoneMask(cf,remaining){
 const zoneKm2 = m => m.reduce((a,b)=>a+b,0)*CELL_M*CELL_M/1e6;
 
 /* ── Отрисовка зоны возврата, маршрута и маркеров на canvas ─────────── */
-function drawOverlay(st, pnrT){
+function drawOverlay(st, pnrRes){
   const c=$('#overlay');
   const dpr=Math.min(2,devicePixelRatio||1);
   const w=c.clientWidth, h=c.clientHeight;
@@ -1072,7 +1072,11 @@ function drawOverlay(st, pnrT){
   });
   dot(HAB,'#4da3ff','#0a0c10',7,'HABITAT');
   dot(ROUTE[ROUTE.length-1],'transparent','rgba(232,236,242,.5)',5,'SCIENCE TARGET');
-  if(pnrT!==null) dot(routeAtDist(planAt(pnrT).s),'transparent','#ff4d5e',7,'PNR');
+  // Маркер ставится на ту же ДИСТАНЦИЮ, где findPNR нашла предел. Раньше
+  // брали planAt(минута).s — позицию по фактическому плану со стоянкой,
+  // тогда как предел считался по безостановочному ходу наружу: маркер
+  // уезжал на сотни метров от точки, где запас реально равен резерву.
+  if(pnrRes) dot(routeAtDist(pnrRes.s),'transparent','#ff4d5e',7,'PNR');
   dot(st.pos,'#ff7a45','#fff',6,null);
   // маркеры рисуем до подписей, чтобы подложки меток легли поверх кружков
   for(const m of marks){
@@ -1107,7 +1111,8 @@ const doseAt = t => doseRateMSvH(SCEN[scen].sky, speFluxOn(t));
 function render(){
   const t=+$('#sTime').value;
   const st=stateAt(t);
-  const pnr=findPNR();
+  const pnrRes=findPNR();           // {m,s} или null
+  const pnr=pnrRes && pnrRes.m;     // минута наступления предела
   const feas=planFeasible(pnr);
   const res=reservePct();
 
@@ -1234,7 +1239,7 @@ function render(){
   $('#tlPnr').style.color = atHome ? 'var(--ok)' : pnrPassed ? 'var(--abort)' : 'var(--tx)';
 
   // карта
-  drawOverlay(st, pnr);
+  drawOverlay(st, pnrRes);
 
   // полосы среды
   $('#vTemp').textContent=tempAt(t).toFixed(0)+' °C';
@@ -1353,13 +1358,28 @@ window.__model={
       if(!SCEN[p.scen]) throw new Error('unknown scenario: '+p.scen+' (have: '+Object.keys(SCEN).join(',')+')');
       scen=p.scen; resetCaches(); }
     if(p.havens!==undefined){ havensOn=p.havens; resetCaches(); }
-    if(p.pace!==undefined){ $('#sPace').value=p.pace; resetCaches(); }
-    if(p.mass!==undefined){ $('#sMass').value=p.mass; resetCaches(); }
-    if(p.res!==undefined){  $('#sRes').value=p.res; }
+    if(p.pace!==undefined){
+      // Слайдер хранит ДЕЦИКИЛОМЕТРЫ (8..30 = 0.8..3.0 км/ч). Хук принимает
+      // физические км/ч и проверяет диапазон: раньше подача 1.1/1.7/2.4
+      // молча зажималась в минимум 8, и весь прогон инвариантов шёл на
+      // одном темпе 0.8 км/ч, притворяясь тремя.
+      const dk=Math.round(p.pace*10);
+      const el=$('#sPace');
+      if(dk<+el.min||dk>+el.max)
+        throw new Error(`pace ${p.pace} km/h out of range ${+el.min/10}..${+el.max/10}`);
+      el.value=dk; resetCaches(); }
+    if(p.mass!==undefined){
+      const el=$('#sMass');
+      if(p.mass<+el.min||p.mass>+el.max) throw new Error(`mass ${p.mass} out of range ${el.min}..${el.max}`);
+      el.value=p.mass; resetCaches(); }
+    if(p.res!==undefined){
+      const el=$('#sRes');
+      if(p.res<+el.min||p.res>+el.max) throw new Error(`reserve ${p.res} out of range ${el.min}..${el.max}`);
+      el.value=p.res; }
     if(p.tgt!==undefined){ TGT={x:p.tgt[0],y:p.tgt[1]}; buildRoute(); buildHavens(); resetCaches(); }
   },
   probe(t){
-    const st=stateAt(t), pnr=findPNR(), res=reservePct();
+    const st=stateAt(t), pnrRes=findPNR(), pnr=pnrRes&&pnrRes.m, res=reservePct();
     const cf=costField(), inZ=zoneMask(cf,st.remaining);
     const cell=ix(Math.round(st.pos.x),Math.round(st.pos.y));
     let area=0; for(let i=0;i<N*N;i++) if(inZ[i]) area++;
@@ -1369,7 +1389,8 @@ window.__model={
       back_h:st.hBack, back_m:st.dBack,
       rem:{...st.remaining}, caps:capsOf(SCEN[scen]),
       dose:st.dose, limiting:st.limiting.key,
-      pnr, inZone:!!inZ[cell], areaCells:area,
+      pnr, pnrDist:pnrRes&&pnrRes.s, inZone:!!inZ[cell], areaCells:area,
+      actualPace:+$('#sPace').value/10, actualMass:+$('#sMass').value, actualRes:+$('#sRes').value,
       routeLen:ROUTE_LEN, feasible:planFeasible(pnr).ok
     };
   },
