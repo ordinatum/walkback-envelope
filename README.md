@@ -18,7 +18,7 @@ For development:
 
 ```bash
 python build.py          # rebuild dist/walkback.html from index.html + physics.mjs
-node test-physics.mjs    # regression check against Apollo EVA measurements
+node test-physics.mjs    # regression check on the consumption formulas
 ```
 
 ## Why this, and not another layered map
@@ -61,7 +61,10 @@ The adaptation matters: gravity-dependent terms (load support, work against
 grade) scale with g, while the level-walking term does not — a naive
 multiplication of the whole equation by 0.38 badly underestimates the cost.
 
-Calibrated against Apollo lunar-surface EVA measurements (780–1200 BTU/h):
+A heuristic Mars-gravity adaptation of Pandolf, regression-tested and compared
+in **scale** with Apollo lunar-EVA averages (780–1200 BTU/h). The Apollo figure
+is an overall range across lunar EVAs, not matched per-activity measurements, and
+the model is **not validated for suited walking on Mars**:
 
 | Activity | Model | BTU/h |
 |---|---|---|
@@ -90,7 +93,7 @@ Stated plainly, because judges will ask.
   no synthetic terrain in the application.
 - MOLA context basemap — live tiles from NASA Trek
 - Surface dose rate 0.0267 mSv/h — MSL RAD, Gale crater
-- Metabolic range 780–1200 BTU/h — Apollo lunar surface EVAs
+- Metabolic range 780–1200 BTU/h — Apollo lunar surface EVAs (scale reference, not per-activity calibration)
 - Physical constants (latent heat, caloric equivalent of O₂)
 
 **Modelled, and labelled as such in the interface**
@@ -115,6 +118,26 @@ real terrain, not from drawing.
 
 ## Known limits
 
+- **Metabolism at 1.7 km/h gives 225.7 W against our 300–500 W design target.**
+  If real expenditure is higher, the envelope is too wide and the
+  resource-driven PNR too late. The regression suite reports this as a declared
+  deviation rather than hiding it. Passing tests does not remove the uncertainty.
+- **The 3 mSv abort threshold is an illustrative project value, not a NASA
+  limit.** NASA states blood-forming-organ limits in mGy-Eq (500 mGy-Eq/year);
+  equivalent and effective dose are not interchangeable. Only the MSL RAD
+  background rate is a sourced quantity.
+- **PNR is a hypothetical outbound deadline**, computed along uninterrupted
+  outward walking, not a certified no-return point on the executed plan. It is
+  possible to pass it and still walk home above reserve — the nominal run does.
+- **Terrain shielding is weak at 200 m/px**: the deepest Melas point keeps
+  96.2 % sky view, so dose falls about 3 % below the open plain. A real canyon
+  would shield far more; we do not have data at that resolution.
+- **Safe Havens are hypothetical**, not mapped infrastructure. Their caches and
+  sky fractions are assumed values used to show the mechanism.
+- **The cost field uses 16 directions** (8 neighbours + 8 knight moves).
+  Directional distance error is about 2.7 %; true geodesic distance would need
+  a continuous solver.
+
 - Terrain is real but at 200 m/px; metre-scale hazards (boulders, fissures)
   need HiRISE or CTX DTM and are not resolved
 - Metabolic model extrapolates lunar measurements to Mars gravity
@@ -132,11 +155,15 @@ real terrain, not from drawing.
 index.html          development entry point, imports physics.mjs
 physics.mjs         physical core: metabolism, consumption, dose
 build.py            inlines physics into the single-file deliverable
-test-physics.mjs    regression barrier against the Apollo figures
+test-physics.mjs    regression barrier on the consumption formulas
 dist/walkback.html  the deliverable — open this
 ```
 
-The six calibration values in `test-physics.mjs` are a regression barrier:
+The six values in `test-physics.mjs` are a regression barrier against our own
+outputs, not an independent validation dataset. Its budget fixture
+(water 3.2 kg / CO₂ 620 g / battery 760 Wh / O₂ 700 g) is a **separate legacy
+suit configuration** — the application uses 5.6 kg / 640 g / 1100 Wh / 560 g,
+so passing the suite does not certify the app's nominal endurance:
 they change only deliberately.
 
 ## Live demo
@@ -159,3 +186,20 @@ Suggested 60-second tour:
    cooling water to the CO₂ scrubber, and the tool says so by name.
 6. Switch to `SOLAR FLARE (SPE)` — dose aborts the EVA while every tank is
    still comfortably full.
+
+## AI assistance
+
+This project was built with AI assistance (Claude and OpenAI Codex) for code,
+physics derivation, independent review and documentation. Terrain extraction,
+the physics model, the verification harness and all defect fixes were produced
+in that collaboration and verified in-browser against the running application.
+NASA Space Apps requires AI usage to be disclosed; this is that disclosure.
+
+## Data and tools
+
+- **Terrain** — USGS/NASA/DLR, Mars MGS MOLA + MEX HRSC Blended DEM Global
+  200 m/px, read with GDAL `/vsicurl/` from the global mosaic
+- **Context basemap** — NASA Trek MOLA colour-shade tiles
+- **Dose baseline** — MSL RAD, Gale crater surface measurements
+- **Metabolic scale reference** — NASA Apollo lunar-EVA metabolic report
+- **Tools** — GDAL, Python 3, Node.js, plain HTML/Canvas (no frameworks)

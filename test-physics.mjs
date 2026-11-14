@@ -25,7 +25,13 @@ function check(label, got, lo, hi, unit = '', note = null) {
 
 /* Бюджет расходников ДОЛЖЕН совпадать со сценарием "Штатный" в index.html.
    Рассинхрон здесь означает, что тест проверяет не то, что показывает UI. */
-export const NOMINAL_BUDGET = { water: 3.2, co2: 620, batt: 760, o2: 700 };
+/* ВНИМАНИЕ: это ОТДЕЛЬНАЯ историческая конфигурация скафандра, а НЕ ёмкости
+   приложения. Приложение использует water 5.6 кг / co2 640 г / batt 1100 Вт·ч
+   / o2 560 г (index.html, SCEN.nominal). Прохождение этих проверок НЕ
+   подтверждает штатный бюджет приложения — только внутреннюю связность
+   формул расхода. */
+export const LEGACY_FIXTURE_BUDGET = { water: 3.2, co2: 620, batt: 760, o2: 700 };
+export const NOMINAL_BUDGET = LEGACY_FIXTURE_BUDGET;
 
 console.log('=== МЕТАБОЛИЗМ · регрессионный барьер (Apollo 780–1200 BTU/ч)');
 const cases = [

@@ -233,9 +233,11 @@ footer{grid-column:1/-1;background:var(--panel);padding:10px 18px}
       <b>DATA SOURCES</b><br/>
       <span class="real">●</span> MOLA basemap — NASA Trek tiles (real)<br/>
       <span class="real">●</span> Dose 0.0267 mSv/h — MSL RAD, Gale crater<br/>
-      <span class="real">●</span> Metabolic rates — Apollo EVA measurements, 780–1200 BTU/h<br/>
+      <span class="real">●</span> Apollo EVA averages 780–1200 BTU/h — scale reference only<br/>
+      <span class="syn">●</span> Metabolic model — Pandolf adapted to 0.38 g, not validated for Mars<br/>
       <span class="real">●</span> Elevation — MOLA + HRSC blended DEM, 200 m/px (USGS)<br/>
-      <span class="syn">●</span> Suit consumable capacities — design estimates
+      <span class="syn">●</span> Suit consumable capacities — design estimates<br/>
+      <span class="syn">●</span> Dose abort 3 mSv — illustrative project threshold, not a NASA limit
     </div>
   </aside>
 
@@ -518,7 +520,7 @@ let havensOn = false;   // по умолчанию выкл.: с цепочко�
 
 /* ── План выхода по ЧАСАМ: темп × время ─────────────────────────────────
    Туда → стоянка на цели → обратно (со стоянками в укрытиях) → дома.     */
-const DOSE_ABORT_MSV=3.0;   // порог прерывания по дозе, мЗв (ALARA)
+const DOSE_ABORT_MSV=3.0;   // иллюстративный проектный порог, мЗв (не лимит NASA)
 let SCHKEY=null, SCH=null;
 function schedule(){
   // Ключ обязан включать ГЕОМЕТРИЮ: длину маршрута и места укрытий.
@@ -1213,9 +1215,12 @@ function render(){
 
   // вердикт
   const m=st.marginPct;
-  // Доза — независимый канал прерывания выхода. Порог 3 мЗв за один выход
-  // соответствует требованию ALARA при лимите NASA 50 мЗв/год на орган
-  // кроветворения: один выход не должен съедать более ~6 % годового бюджета.
+  // Доза — независимый канал прерывания выхода. Порог 3 мЗв — ИЛЛЮСТРАТИВНЫЙ
+  // проектный порог, НЕ утверждённый лимит NASA. Прежний комментарий ссылался
+  // на «лимит 50 мЗв/год на орган кроветворения», но NASA задаёт пределы для
+  // кроветворных органов в мГр-экв (500 мГр-экв/год), а эквивалентную и
+  // эффективную дозу нельзя приравнивать. Подтверждена только базовая
+  // интенсивность MSL RAD.
   const DOSE_ABORT=DOSE_ABORT_MSV, DOSE_CAUTION=1.0;
   // ТЗ п.18: ABORT наступает при ПРОБОЕ неснижаемого резерва, а не когда
   // возврат уже невозможен. CAUTION — предупреждение за CAUTION_BAND п.п.
