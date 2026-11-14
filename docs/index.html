@@ -451,19 +451,92 @@ const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
    ROUTE/ROUTE_CUM/ROUTE_LEN пересчитываются, а не константы. */
 let ROUTE=[], ROUTE_CUM=[], ROUTE_LEN=0;
 let ROUTE_LEN_MAX=0;   // предел гипотетического продолжения выхода для PNR
+/* ── Путь туда: A* по тому же рельефу, что и поле возврата ─────────────
+   Раньше маршрут был нарисованной дугой «прямая + синусоидальный горб»:
+   он ни разу не опрашивал высоты, поэтому выглядел одинаково на равнине
+   и в каньоне и спокойно резал непроходимые склоны.
+
+   Теперь это настоящий поиск: Дейкстра от базы к цели по восьми соседям,
+   рёбра круче 45 % отвергаются, вес ребра — та же нормированная стоимость
+   расходников, что в costField. Отличие от поля возврата одно: знак уклона
+   берётся в направлении движения ОТ базы, потому что подъём туда и подъём
+   обратно — разные склоны.
+
+   Маршрут считается один раз при постановке цели, по текущим параметрам
+   выхода: план траверса составляют до выхода, а не пересчитывают на ходу. */
+function routePath(from,to){
+  const S=SCEN[scen], caps=capsOf(S), pace=paceMs();
+  const T=tempAt(REF_TEMP_MIN);
+  const si=ix(Math.round(from.x),Math.round(from.y));
+  const ti=ix(Math.round(to.x),  Math.round(to.y));
+  if(si===ti) return null;
+  const dist=new Float64Array(N*N).fill(Infinity);
+  const prev=new Int32Array(N*N).fill(-1);
+  const done=new Uint8Array(N*N);
+  dist[si]=0;
+  const heap=[[0,si]];
+  const push=(c,i)=>{ let n=heap.push([c,i])-1;
+    while(n>0){ const p=(n-1)>>1; if(heap[p][0]<=heap[n][0]) break;
+      [heap[p],heap[n]]=[heap[n],heap[p]]; n=p; } };
+  const pop=()=>{ const top=heap[0], last=heap.pop();
+    if(heap.length){ heap[0]=last; let n=0;
+      for(;;){ let l=2*n+1, r=l+1, m=n;
+        if(l<heap.length&&heap[l][0]<heap[m][0]) m=l;
+        if(r<heap.length&&heap[r][0]<heap[m][0]) m=r;
+        if(m===n) break; [heap[m],heap[n]]=[heap[n],heap[m]]; n=m; } }
+    return top; };
+  while(heap.length){
+    const [c,cur]=pop();
+    if(done[cur]) continue;
+    done[cur]=1;
+    if(cur===ti) break;
+    const cx=cur%N, cy=(cur/N)|0;
+    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
+      if(!ox&&!oy) continue;
+      const nx=cx+ox, ny=cy+oy;
+      if(nx<0||ny<0||nx>=N||ny>=N) continue;
+      const ni=ix(nx,ny);
+      if(done[ni]) continue;
+      const d=Math.hypot(ox,oy)*CELL_M;
+      const grade=(elev[ni]-elev[cur])/d*100;     // идём cur → ni, наружу
+      if(Math.abs(grade)>45) continue;
+      const met=metabolicW({speedMs:pace,gradePct:grade,loadKg:loadKg()});
+      const r=consumptionRates(met,{extTempC:T,solarWm2:S.solar});
+      const h=d/(pace*3600);
+      let e=0; for(const k of KEYS) e+=r[RATE_KEY[k]]*h/caps[k];
+      const nc=c+e;
+      if(nc<dist[ni]){ dist[ni]=nc; prev[ni]=cur; push(nc,ni); }
+    }
+  }
+  if(!isFinite(dist[ti])) return null;             // пешего пути нет
+  const path=[];
+  for(let i=ti;i!==-1;i=prev[i]) path.push({x:i%N, y:(i/N)|0});
+  path.reverse();
+  // концы — точно база и цель, а не центры их ячеек
+  path[0]={x:from.x, y:from.y};
+  path[path.length-1]={x:to.x, y:to.y};
+  // лёгкое сглаживание: убирает пилу восьмисвязной сетки, не смещая изломы
+  for(let pass=0;pass<2;pass++)
+    for(let i=1;i<path.length-1;i++){
+      path[i]={x:(path[i-1].x+2*path[i].x+path[i+1].x)/4,
+               y:(path[i-1].y+2*path[i].y+path[i+1].y)/4};
+    }
+  return path;
+}
+
 function buildRoute(){
   ROUTE.length=0;
-  const bendAmp = Math.hypot(TGT.x-HAB.x, TGT.y-HAB.y)*0.16;
-  for(let i=0;i<=60;i++){
-    const t=i/60, bend=Math.sin(t*Math.PI)*bendAmp;
-    ROUTE.push({x:HAB.x+(TGT.x-HAB.x)*t+bend, y:HAB.y+(TGT.y-HAB.y)*t-bend*0.45});
-  }
+  // Путь туда ищется по рельефу. Если пешего пути нет вовсе, оставляем
+  // прямую — её отвергнет проверка при постановке цели.
+  const p=routePath(HAB,TGT);
+  if(p){ for(const q of p) ROUTE.push(q); }
+  else { for(let i=0;i<=60;i++){ const t=i/60;
+    ROUTE.push({x:HAB.x+(TGT.x-HAB.x)*t, y:HAB.y+(TGT.y-HAB.y)*t}); } }
   ROUTE_CUM=[0];
   for(let i=1;i<ROUTE.length;i++) ROUTE_CUM.push(ROUTE_CUM[i-1]+cellDist(ROUTE[i-1],ROUTE[i]));
   ROUTE_LEN=ROUTE_CUM[ROUTE_CUM.length-1];
   ROUTE_LEN_MAX=ROUTE_LEN;
 }
-buildRoute();
 function routeAtDist(s){            // s: метры от хабитата вдоль маршрута
   s=Math.max(0,Math.min(ROUTE_LEN,s));
   let i=1; while(i<ROUTE.length-1 && ROUTE_CUM[i]<s) i++;
@@ -522,6 +595,7 @@ let HAVENS = [];
 function buildHavens(){ HAVENS = HAVEN_DEFS.map(d=> d.c
   ? {...d, s:null, pos:d.c}                                   // вне маршрута
   : {...d, s:d.f*ROUTE_LEN, pos:routeAtDist(d.f*ROUTE_LEN)}); }
+buildRoute();   // после объявления capsOf/tempAt: A* опирается на них
 buildHavens(); // на маршруте
 let havensOn = false;   // по умолчанию выкл.: с цепочкой укрытий вдоль маршрута зона не сжимается и PNR не наступает
 
@@ -1055,24 +1129,64 @@ function drawOverlay(st, pnrT){
   for(let i=0;i<=done;i++){ const q=PX(ROUTE[i]); i?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y); }
   g.strokeStyle='#ff7a45'; g.lineWidth=2.5; g.stroke();
 
+  /* Подписи маркеров разводятся, чтобы не садиться друг на друга: при
+     коротком маршруте PNR оказывается рядом с базой, и раньше «PNR»
+     печаталось поверх «HABITAT» — читалось как мусор. Сначала собираем
+     все метки, затем раскладываем: для каждой перебираем позиции вокруг
+     точки и берём первую, не пересекающую уже размещённые и не уходящую
+     за край карты. */
+  const marks=[], labels=[];
   const dot=(p,fill,stroke,r,label)=>{
     const q=PX(p);
-    g.beginPath(); g.arc(q.x,q.y,r,0,7); g.fillStyle=fill; g.fill();
-    g.lineWidth=2; g.strokeStyle=stroke; g.stroke();
-    if(label){ g.font='9px ui-monospace,monospace'; g.fillStyle='rgba(232,236,242,.85)';
-      g.fillText(label,q.x+r+5,q.y+3); }
+    marks.push({q,fill,stroke,r});
+    if(label) labels.push({q,r,label});
+  };
+  const placeLabels=()=>{
+    g.font='9px ui-monospace,monospace';
+    const placed=[];
+    const hit=(a,b)=>!(a.x+a.w<b.x||b.x+b.w<a.x||a.y+a.h<b.y||b.y+b.h<a.y);
+    for(const L of labels){
+      const tw=g.measureText(L.label).width, th=11;
+      // кандидаты: справа, слева, снизу, сверху, затем диагонали
+      const o=L.r+5, cands=[
+        [ o,     3], [-o-tw,  3], [ o,  13], [-o-tw, 13],
+        [-tw/2, -o-2], [-tw/2, o+11], [ o,  -8], [-o-tw, -8]
+      ];
+      let best=null;
+      for(const [dx,dy] of cands){
+        const box={x:L.q.x+dx, y:L.q.y+dy-th+2, w:tw, h:th};
+        if(box.x<2||box.y<2||box.x+box.w>w-2||box.y+box.h>h-2) continue;
+        if(placed.some(p=>hit(box,p))) continue;
+        best={dx,dy,box}; break;
+      }
+      if(!best){                       // всё занято — ставим справа и не прячем
+        const dx=o, dy=3;
+        best={dx,dy,box:{x:L.q.x+dx,y:L.q.y+dy-th+2,w:tw,h:th}};
+      }
+      placed.push(best.box);
+      // подложка под текстом: подпись читается поверх любого рельефа
+      g.fillStyle='rgba(10,12,16,.72)';
+      g.fillRect(best.box.x-3,best.box.y-1,best.box.w+6,best.box.h+2);
+      g.fillStyle='rgba(232,236,242,.92)';
+      g.fillText(L.label, L.q.x+best.dx, L.q.y+best.dy);
+    }
   };
   if(havensOn) HAVENS.forEach((h,i)=>{
     const q=PX(h.pos), r=6;
     g.beginPath(); g.rect(q.x-r,q.y-r,2*r,2*r); g.fillStyle='#8f7bff'; g.fill();
     g.lineWidth=2; g.strokeStyle='#0a0c10'; g.stroke();
-    g.font='9px ui-monospace,monospace'; g.fillStyle='rgba(232,236,242,.85)';
-    g.fillText('HAVEN '+(i+1)+' · '+h.name,q.x+r+5,q.y+3);
+    labels.push({q,r,label:'HAVEN '+(i+1)+' · '+h.name});
   });
   dot(HAB,'#4da3ff','#0a0c10',7,'HABITAT');
   dot(ROUTE[ROUTE.length-1],'transparent','rgba(232,236,242,.5)',5,'SCIENCE TARGET');
   if(pnrT!==null) dot(routeAtDist(planAt(pnrT).s),'transparent','#ff4d5e',7,'PNR');
   dot(st.pos,'#ff7a45','#fff',6,null);
+  // маркеры рисуем до подписей, чтобы подложки меток легли поверх кружков
+  for(const m of marks){
+    g.beginPath(); g.arc(m.q.x,m.q.y,m.r,0,7); g.fillStyle=m.fill; g.fill();
+    g.lineWidth=2; g.strokeStyle=m.stroke; g.stroke();
+  }
+  placeLabels();
 }
 
 /* ── Графики среды ──────────────────────────────────────────────────── */
@@ -1278,25 +1392,11 @@ $('#sitebar').addEventListener('click', e=>{
   applySite(+b.dataset.i);
 });
 
-/* Проверка проходимости нарисованного маршрута к цели: та же дуга, что строит
-   buildRoute, но пройденная шагами по ячейке и сверенная с тем же порогом
-   непроходимости, что и поле возврата. */
-function routeBlockedTo(tgt){
-  const amp=Math.hypot(tgt.x-HAB.x,tgt.y-HAB.y)*0.16;
-  const pts=[];
-  for(let i=0;i<=60;i++){
-    const t=i/60, bend=Math.sin(t*Math.PI)*amp;
-    pts.push({x:HAB.x+(tgt.x-HAB.x)*t+bend, y:HAB.y+(tgt.y-HAB.y)*t-bend*0.45});
-  }
-  for(let i=1;i<pts.length;i++){
-    const a=pts[i-1], b=pts[i];
-    const d=Math.hypot(b.x-a.x,b.y-a.y)*CELL_M;
-    if(d<1) continue;
-    const grade=Math.abs(elevBil(b.x,b.y)-elevBil(a.x,a.y))/d*100;
-    if(grade>45) return true;
-  }
-  return false;
-}
+/* Проходимость пути туда: сам A* возвращает null, если пешего маршрута к
+   цели нет — отдельной геометрической проверки больше не нужно. Раньше
+   здесь обходилась нарисованная дуга, но маршрут теперь ищется по рельефу,
+   и единственный достоверный ответ даёт сам поиск. */
+function routeBlockedTo(tgt){ return routePath(HAB,tgt)===null; }
 
 /* Клик по карте переносит научную цель. Обратная Дейкстра считает поле от
    базы, поэтому менять можно только конец маршрута — вся математика готова. */
