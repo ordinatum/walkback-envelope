@@ -84,24 +84,39 @@ would not function.
 Stated plainly, because judges will ask.
 
 **Real NASA data and published measurements**
+- **Terrain — MOLA + HRSC Blended DEM, 200 m/px** (USGS/NASA/DLR). Four real
+  sites are cut from the global 11 GB mosaic with GDAL `/vsicurl/`, 25 km
+  across each, resampled to the 84x84 working grid (298 m per cell). There is
+  no synthetic terrain in the application.
 - MOLA context basemap — live tiles from NASA Trek
 - Surface dose rate 0.0267 mSv/h — MSL RAD, Gale crater
 - Metabolic range 780–1200 BTU/h — Apollo lunar surface EVAs
 - Physical constants (latent heat, caloric equivalent of O₂)
 
 **Modelled, and labelled as such in the interface**
-- Local elevation and slope field — synthetic, deterministic
 - Suit consumable capacities — design estimates
 - Diurnal temperature and dust opacity profiles
 
-The local relief is synthetic by necessity: a MOLA tile covers ~167 km at
-463 m/px, while an EVA plays out over ~10 km. Stretching it would produce
-one blurred pixel. MOLA is shown as a context inset with the working area
-marked, which is the honest use of it.
+MOLA alone (463 m/px) would give only 54 pixels across a 25 km site, so the
+blended MOLA+HRSC product at 200 m/px is used instead — 125 pixels, enough to
+resolve a crater rim and a canyon wall.
+
+### Four real sites
+
+| Site | Relief | Why it is here |
+|---|---|---|
+| **Jezero Crater** | 1211 m | Perseverance landing site. Rim and delta — strongly anisotropic return cost |
+| **Gale Crater** | 2480 m | Curiosity landing site. Central mound: a sustained climb in every direction |
+| **Melas Chasma** | 3261 m | Valles Marineris. 11 % of cells exceed 25 deg — walls are impassable and the envelope is forced along the valley |
+| **Elysium Planitia** | 61 m | InSight landing site. The control case: on a flat plain the envelope is nearly circular |
+
+The contrast between Melas and Elysium is the point: envelope shape comes from
+real terrain, not from drawing.
 
 ## Known limits
 
-- Elevation field is synthetic; real planning needs HiRISE or CTX DTM
+- Terrain is real but at 200 m/px; metre-scale hazards (boulders, fissures)
+  need HiRISE or CTX DTM and are not resolved
 - Metabolic model extrapolates lunar measurements to Mars gravity
 - Suit capacities are estimates, not a specification of any real unit
 - Thermal balance is simplified: no body orientation to the Sun, no soil
@@ -134,9 +149,13 @@ return envelope shrink and the Point of No Return approach.
 Suggested 60-second tour:
 1. `NOMINAL`, pace 1.7 km/h — watch the verdict go GO → CAUTION as the
    envelope contracts around the habitat.
-2. Toggle `HAVENS ON` — the reachable return area grows by about half,
+2. Click anywhere on the map to move the science target — the route, the
+   Point of No Return and the verdict recompute immediately.
+3. Switch sites in the top bar: `MELAS CHASMA` shows the envelope pinned
+   inside a canyon, `ELYSIUM PLANITIA` shows the near-circular control case.
+4. Toggle `HAVENS ON` — the reachable return area grows by about half,
    because each haven is an additional zero-cost source in the same search.
-3. Switch to `SCRUBBER FAILURE` — the limiting consumable changes from
+5. Switch to `SCRUBBER FAILURE` — the limiting consumable changes from
    cooling water to the CO₂ scrubber, and the tool says so by name.
-4. Switch to `SOLAR FLARE (SPE)` — dose aborts the EVA while every tank is
+6. Switch to `SOLAR FLARE (SPE)` — dose aborts the EVA while every tank is
    still comfortably full.
