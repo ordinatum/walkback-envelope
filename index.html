@@ -1004,9 +1004,11 @@ function drawOverlay(st, pnrT){
     const t0=+$('#sTime').value;
     if(t0>=SPE_REG && t0<SPE_ARRIVE){
       const left=SPE_ARRIVE-t0;
+      // размер ячейки: cw/chh теперь локальны внутри drawZone
+      const zw=w/N, zh=h/N;
       g.fillStyle='rgba(255,194,71,.30)';
       for(let y=0;y<N;y++) for(let x=0;x<N;x++){
-        const i=ix(x,y); if(isFinite(cf.scal[i]) && cf.hrs[i]*60<=left) g.fillRect(x*cw,y*chh,cw+0.5,chh+0.5);
+        const i=ix(x,y); if(isFinite(cf.scal[i]) && cf.hrs[i]*60<=left) g.fillRect(x*zw,y*zh,zw+0.5,zh+0.5);
       }
     }
   }
@@ -1338,6 +1340,42 @@ $('#btnPal').addEventListener('click',()=>{
   $('#btnPal').textContent=PALETTES[palette].name;
   drawRelief();
 });
+
+
+/* ── Тестовый хук ──────────────────────────────────────────────────────
+   Модель живёт в модуле и снаружи недоступна. Проверка инвариантов должна
+   опрашивать МОДЕЛЬ, а не интерфейс: через DOM видно только то, что уже
+   отрисовано, и целые классы ошибок остаются невидимыми. */
+window.__model={
+  setParams(p){
+    if(p.site!==undefined) applySite(p.site);
+    if(p.scen!==undefined){
+      if(!SCEN[p.scen]) throw new Error('unknown scenario: '+p.scen+' (have: '+Object.keys(SCEN).join(',')+')');
+      scen=p.scen; resetCaches(); }
+    if(p.havens!==undefined){ havensOn=p.havens; resetCaches(); }
+    if(p.pace!==undefined){ $('#sPace').value=p.pace; resetCaches(); }
+    if(p.mass!==undefined){ $('#sMass').value=p.mass; resetCaches(); }
+    if(p.res!==undefined){  $('#sRes').value=p.res; }
+    if(p.tgt!==undefined){ TGT={x:p.tgt[0],y:p.tgt[1]}; buildRoute(); buildHavens(); resetCaches(); }
+  },
+  probe(t){
+    const st=stateAt(t), pnr=findPNR(), res=reservePct();
+    const cf=costField(), inZ=zoneMask(cf,st.remaining);
+    const cell=ix(Math.round(st.pos.x),Math.round(st.pos.y));
+    let area=0; for(let i=0;i<N*N;i++) if(inZ[i]) area++;
+    return {
+      t, phase:st.phase, margin:st.marginPct, res,
+      range:Math.hypot(st.pos.x-HAB.x,st.pos.y-HAB.y)*CELL_M,
+      back_h:st.hBack, back_m:st.dBack,
+      rem:{...st.remaining}, caps:capsOf(SCEN[scen]),
+      dose:st.dose, limiting:st.limiting.key,
+      pnr, inZone:!!inZ[cell], areaCells:area,
+      routeLen:ROUTE_LEN, feasible:planFeasible(pnr).ok
+    };
+  },
+  needAtHab(){ return needAt(HAB); },
+  consts(){ return {N, CELL_M, EVA_MAX, DOSE_ABORT_MSV, CAUTION_BAND}; }
+};
 
 initMap();
 render();
