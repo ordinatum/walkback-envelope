@@ -309,7 +309,7 @@ const elevAt  = (x,y) => elev[ix(Math.max(0,Math.min(N-1,Math.round(x))),
                                   Math.max(0,Math.min(N-1,Math.round(y))))] || 2400;
 
 /* ── Маршрут выхода: от хабитата к научной цели ─────────────────────── */
-let HAB = {x:N*0.34, y:N*0.6};
+let HAB = {x:Math.round(N*0.34), y:Math.round(N*0.6)};   // ровно центр ячейки: иначе needAt интерполирует ненулевую стоимость
 let TGT = {x:N*0.485, y:N*0.487};
 const cellDist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)*CELL_M;
 
@@ -928,18 +928,23 @@ function render(){
   const limName = doseLimits ? 'cumulative dose' : st.limiting.label;
   // SPE: таймер до прихода потока против времени до ближайшего укрытия
   const S=SCEN[scen];
+  // Выход окончен: астронавт внутри хабитата. Ни тревога по укрытию, ни PNR
+  // к нему уже не относятся — укрытие ему больше не нужно, он дома.
+  const atHome = st.phase==='home';
   let spe=null;
-  if(S.spe && t>=SPE_REG && t<SPE_END){
+  if(S.spe && t>=SPE_REG && t<SPE_END && !atHome){
     const left=Math.max(0,SPE_ARRIVE-t), reach=st.hBack*60;
     spe={left, reach, unreachable: st.dBack>5 && reach>left};
   }
   const speWarn = spe && spe.left>0 && !spe.unreachable;
   const v=$('#verdict');
-  v.className='verdict '+((spe&&spe.unreachable)?'abort':go&&!speWarn?'':(caution||(speWarn&&!abort))?'caution':'abort');
-  const tagTxt=(spe&&spe.unreachable)?'SHELTER UNREACHABLE':go&&!speWarn?'GO':(caution||(speWarn&&!abort))?'CAUTION':'ABORT';
+  v.className='verdict '+(atHome?'':(spe&&spe.unreachable)?'abort':go&&!speWarn?'':(caution||(speWarn&&!abort))?'caution':'abort');
+  const tagTxt=atHome?'EVA COMPLETE':(spe&&spe.unreachable)?'SHELTER UNREACHABLE':go&&!speWarn?'GO':(caution||(speWarn&&!abort))?'CAUTION':'ABORT';
   $('#vtag').textContent=tagTxt;
   $('#vtag').classList.toggle('long',tagTxt.length>9);
-  $('#vtext').textContent = (spe&&spe.unreachable)
+  $('#vtext').textContent = atHome
+    ? `Astronaut is back inside the habitat. EVA closed with ${st.limiting.label.toLowerCase()} as the limiting consumable.`
+    : (spe&&spe.unreachable)
     ? `Proton flux ${spe.left>0?'arrives in '+fmt(spe.left):'has arrived'}; nearest shelter is ${fmt(spe.reach)} away (${(st.dBack/1000).toFixed(2)} km). Shelter cannot be reached in time.`
     : speWarn && !abort
     ? `SPE registered. Proton flux in ${fmt(spe.left)}; shelter reachable in ${fmt(spe.reach)}. Begin return now.`
@@ -986,8 +991,9 @@ function render(){
       `Havens give radiation cover and a resupply stop; they do not end the EVA.`;
   }
   const pnrPassed = pnr!==null && t>=pnr;
-  $('#tlPnr').textContent = pnr===null ? 'NOT REACHED' : pnrPassed ? 'PASSED' : `IN ${fmt(pnr-t)}`;
-  $('#tlPnr').style.color = pnrPassed ? 'var(--abort)' : 'var(--tx)';
+  $('#tlPnr').textContent = atHome ? 'EVA COMPLETE'
+    : pnr===null ? 'NOT REACHED' : pnrPassed ? 'PASSED' : `IN ${fmt(pnr-t)}`;
+  $('#tlPnr').style.color = atHome ? 'var(--ok)' : pnrPassed ? 'var(--abort)' : 'var(--tx)';
 
   // карта
   drawOverlay(st, pnr);
@@ -1033,7 +1039,7 @@ function resetCaches(){
 function applySite(i){
   loadSite(i);
   // база и цель — в долях участка, чтобы работали на любой площадке
-  HAB={x:N*0.34, y:N*0.6};
+  HAB={x:Math.round(N*0.34), y:Math.round(N*0.6)};
   TGT={x:N*0.485, y:N*0.487};
   buildRoute(); buildHavens(); resetCaches();
   const s=SITE_DEFS[i];
@@ -1050,6 +1056,26 @@ $('#sitebar').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   applySite(+b.dataset.i);
 });
+
+/* Проверка проходимости нарисованного маршрута к цели: та же дуга, что строит
+   buildRoute, но пройденная шагами по ячейке и сверенная с тем же порогом
+   непроходимости, что и поле возврата. */
+function routeBlockedTo(tgt){
+  const amp=Math.hypot(tgt.x-HAB.x,tgt.y-HAB.y)*0.16;
+  const pts=[];
+  for(let i=0;i<=60;i++){
+    const t=i/60, bend=Math.sin(t*Math.PI)*amp;
+    pts.push({x:HAB.x+(tgt.x-HAB.x)*t+bend, y:HAB.y+(tgt.y-HAB.y)*t-bend*0.45});
+  }
+  for(let i=1;i<pts.length;i++){
+    const a=pts[i-1], b=pts[i];
+    const d=Math.hypot(b.x-a.x,b.y-a.y)*CELL_M;
+    if(d<1) continue;
+    const grade=Math.abs(elevBil(b.x,b.y)-elevBil(a.x,a.y))/d*100;
+    if(grade>45) return true;
+  }
+  return false;
+}
 
 /* Клик по карте переносит научную цель. Обратная Дейкстра считает поле от
    базы, поэтому менять можно только конец маршрута — вся математика готова. */
@@ -1069,6 +1095,11 @@ $('#overlay').addEventListener('click', e=>{
   const cand={x:Math.max(1,Math.min(N-2,gx)), y:Math.max(1,Math.min(N-2,gy))};
   if(!isFinite(needAt(cand).h)){
     $('#clickhint').textContent='TARGET UNREACHABLE — NO WALKABLE RETURN PATH'; return; }
+  // Доступность конечной ячейки ещё не значит проходимость ДОРОГИ к ней:
+  // нарисованный маршрут — дуга, и она может пересечь склон круче порога,
+  // который поле возврата отвергает как непроходимый.
+  if(routeBlockedTo(cand)){
+    $('#clickhint').textContent='ROUTE BLOCKED — SLOPE OVER 45 % ON THE WAY OUT'; return; }
   TGT=cand;
   buildRoute(); buildHavens(); resetCaches();
   $('#clickhint').textContent=`TARGET MOVED · ${(ROUTE_LEN/1000).toFixed(2)} km ONE WAY`;
