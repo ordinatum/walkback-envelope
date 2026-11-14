@@ -500,9 +500,35 @@ function costField(hv=havensOn){
         if(r<heap.length&&heap[r][0]<heap[m][0]) m=r;
         if(m===n) break; [heap[m],heap[n]]=[heap[n],heap[m]]; n=m; } }
     return top; };
-  // мульти-сорс: хабитат и (если включены) все укрытия стартуют с нуля
-  const sources=[HAB,...(hv?HAVENS.map(h=>h.pos):[])];
-  for(const q of sources){ const i0=ix(Math.round(q.x),Math.round(q.y)); scal[i0]=0; push(0,i0); }
+  // Хабитат — единственный источник с нулевой стоимостью: только там выход
+  // действительно заканчивается.
+  //
+  // Укрытие НЕ обнуляет стоимость: оно не завершает выход, а лишь пополняет
+  // расходники из закладки. Поэтому источник-укрытие стартует с ОСТАТОЧНОЙ
+  // стоимости «укрытие → база», уменьшенной на содержимое закладки, но не
+  // ниже нуля. Раньше укрытия были терминальными источниками с нулём, и
+  // точка объявлялась безопасной без оплаты плеча «укрытие → база».
+  const i0=ix(Math.round(HAB.x),Math.round(HAB.y)); scal[i0]=0; push(0,i0);
+  if(hv){
+    const base=costField(false);                    // поле без укрытий
+    for(const h of HAVENS){
+      const hi=ix(Math.round(h.pos.x),Math.round(h.pos.y));
+      if(!isFinite(base.scal[hi])) continue;        // до базы от укрытия хода нет
+      // стоимость плеча «укрытие → база» минус пополнение из закладки
+      let resid=0; const rc={};
+      for(const k of KEYS){
+        rc[k]=Math.max(0, base.ch[k][hi]-CACHE_FRAC*caps[k]);
+        resid+=rc[k]/caps[k];
+      }
+      if(resid>=scal[hi]) continue;                 // через базу уже дешевле
+      scal[hi]=resid;
+      for(const k of KEYS) ch[k][hi]=rc[k];
+      // время и путь плеча остаются полными: закладка пополняет расходники,
+      // но не сокращает дорогу домой
+      hrs[hi]=base.hrs[hi]; mtr[hi]=base.mtr[hi];
+      push(resid,hi);
+    }
+  }
   while(heap.length){
     const [c,cur]=pop();
     if(c>scal[cur]) continue;                       // устаревшая запись
