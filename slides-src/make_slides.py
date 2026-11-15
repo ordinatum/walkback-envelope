@@ -125,7 +125,7 @@ def bullet(d, x, y, text, col=TX, sz=26, gap=42):
         d.text((x + 22, y + i*gap), ln, font=font(sz), fill=col)
 
 # ───────────────────────────── 1. Титул ─────────────────────────────
-im, d = base(1, 'NASA SPACE APPS CHALLENGE 2026 · URALSK',
+im, d = base(1, 'TEAM ORDINATUM · NASA SPACE APPS CHALLENGE 2026 · URALSK',
              'Can the astronaut still walk home?',
              'A return-capability map for a Mars EVA, computed over real terrain')
 # приложение целиком: карта и панель вердикта вместе
@@ -353,7 +353,8 @@ L.text((1132, 628),
        'independent abort channel.\n\n'
        'A concept demonstrator, not flight software.',
        font(20), TX, 'what body', lead=29)
-L.text((72, 950), 'Team: Alexander Kornienko · alex226019@gmail.com', font(22), DIM, 'team')
+L.text((72, 938), 'Team ordinatum', mono(22), TX, 'team name')
+L.text((72, 976), 'Captain: Alexander Kornienko · alex226019@gmail.com', font(21), DIM, 'team')
 im.save(f'{OUT}/slide7.png')
 
 print('слайды собраны:')
